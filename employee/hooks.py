@@ -8,7 +8,14 @@ app_license = "mit"
 
 # Includes in <head>
 # ------------------
-
+doctype_js = {
+    "Salary Structure Assignment": "public/js/salary.js"
+}
+# doc_events = {
+#     "Salary Structure Assignment": {
+#         "after_save": "employee.api.on_submit_salary_structure_assignment"
+#     }
+# }
 # include js, css files in header of desk.html
 # app_include_css = "/assets/employee/css/employee.css"
 # app_include_js = "/assets/employee/js/employee.js"
