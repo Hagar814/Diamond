@@ -3,7 +3,7 @@
 
 
 import frappe
-from frappe.utils import getdate, add_days, now_datetime, get_datetime
+from frappe.utils import getdate, add_days, get_datetime
 
 @frappe.whitelist()
 def validate_payroll_half_day(name):
@@ -18,11 +18,10 @@ def validate_payroll_half_day(name):
         current = start
 
         while current <= end:
-            # Define exact datetime range for the day
             day_start = get_datetime(str(current) + " 00:00:00")
             day_end = get_datetime(str(current) + " 23:59:59")
 
-            # Count only IN logs for that day
+            # Count IN logs
             checkins = frappe.get_all(
                 "Employee Checkin",
                 filters={
@@ -33,10 +32,22 @@ def validate_payroll_half_day(name):
                 fields=["name"]
             )
 
+            # Count shift assignments
+            shift_count = frappe.db.count(
+                "Shift Assignment",
+                {
+                    "employee": emp_id,
+                    "start_date": ["<=", current],
+                    "end_date": [">=", current],
+                }
+            )
+
             in_count = len(checkins)
 
-            if in_count == 1:
-                # Get attendance for that day
+            # Apply rule: multi-shift + only 1 IN log
+            if shift_count > 1 and in_count == 1:
+
+                # Find attendance
                 attendance = frappe.get_all(
                     "Attendance",
                     filters={
@@ -50,23 +61,21 @@ def validate_payroll_half_day(name):
                 if attendance:
                     att_doc = frappe.get_doc("Attendance", attendance[0].name)
 
-                    # Allow update after submit
+                    # Allow changing submitted doc
                     att_doc.flags.ignore_validate_update_after_submit = True
                     att_doc.flags.ignore_permissions = True
 
+                    # Set fields
                     att_doc.status = "Half Day"
+                    att_doc.half_day_status = "Absent"
+
                     att_doc.save()
 
-                    
+                   
 
-            # Move to next day
             current = add_days(current, 1)
 
     return "\n".join(msg)
-
-
-
-
 
 
 # # ----------------------------------------------------------
