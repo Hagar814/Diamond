@@ -9,8 +9,9 @@ app_license = "mit"
 # Includes in <head>
 # ------------------
 doctype_js = {
-    "Salary Structure Assignment": "public/js/salary.js"
+    "Payroll Entry": "public/js/salary.js"
 }
+
 # doc_events = {
 #     "Salary Structure Assignment": {
 #         "after_save": "employee.api.on_submit_salary_structure_assignment"

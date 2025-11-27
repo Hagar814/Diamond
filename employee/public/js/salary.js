@@ -1,5 +1,6 @@
 frappe.ui.form.on("Payroll Entry", {
-    on_submit: function(frm) {
+    validate: function(frm) {
+        console.log("validate running");
         frappe.call({
             method: "employee.api.on_submit_payroll_entry",
             args: {
