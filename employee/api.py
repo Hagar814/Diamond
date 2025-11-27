@@ -57,13 +57,7 @@ def validate_payroll_half_day(name):
                     att_doc.status = "Half Day"
                     att_doc.save()
 
-                    msg.append(
-                        f"{emp_id} | {current} → Only 1 IN log ⇒ Attendance {att_doc.name} marked Half Day"
-                    )
-                else:
-                    msg.append(
-                        f"{emp_id} | {current} → 1 IN log but NO Attendance found"
-                    )
+                    
 
             # Move to next day
             current = add_days(current, 1)
