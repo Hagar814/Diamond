@@ -1,12 +1,15 @@
-# import frappe
-# from datetime import datetime, timedelta
-
-
 import frappe
 from frappe.utils import getdate, add_days, now_datetime, get_datetime
+from datetime import datetime, time
 
+# =====================================================================
+# VALIDATE HALF DAY
+# =====================================================================
 @frappe.whitelist()
 def validate_payroll_half_day(name):
+    frappe.msgprint(f"🔍 validate_payroll_half_day STARTED for: {name}")
+    print(f"[DEBUG] validate_payroll_half_day STARTED for: {name}")
+
     payroll = frappe.get_doc("Payroll Entry", name)
     start = getdate(payroll.start_date)
     end = getdate(payroll.end_date)
@@ -15,14 +18,18 @@ def validate_payroll_half_day(name):
 
     for row in payroll.employees:
         emp_id = row.employee
+        frappe.msgprint(f"➡ Checking employee: {emp_id}")
+        print(f"[DEBUG] Checking employee: {emp_id}")
+
         current = start
 
         while current <= end:
-            # Define exact datetime range for the day
+            frappe.msgprint(f"📌 Checking date: {current}")
+            print(f"[DEBUG] Checking date: {current}")
+
             day_start = get_datetime(str(current) + " 00:00:00")
             day_end = get_datetime(str(current) + " 23:59:59")
 
-            # Count only IN logs for that day
             checkins = frappe.get_all(
                 "Employee Checkin",
                 filters={
@@ -34,9 +41,11 @@ def validate_payroll_half_day(name):
             )
 
             in_count = len(checkins)
+            print(f"[DEBUG] IN count for {emp_id} on {current}: {in_count}")
 
             if in_count == 1:
-                # Get attendance for that day
+                print(f"[DEBUG] Half-Day candidate found for {emp_id} on {current}")
+
                 attendance = frappe.get_all(
                     "Attendance",
                     filters={
@@ -49,39 +58,45 @@ def validate_payroll_half_day(name):
 
                 if attendance:
                     att_doc = frappe.get_doc("Attendance", attendance[0].name)
+                    print(f"[DEBUG] Updating Attendance {attendance[0].name} → Half Day")
 
-                    # Allow update after submit
                     att_doc.flags.ignore_validate_update_after_submit = True
                     att_doc.flags.ignore_permissions = True
 
                     att_doc.status = "Half Day"
                     att_doc.save()
 
-                    
+                    frappe.msgprint(
+                        f"✔ Updated Attendance for {emp_id} on {current} → Half Day"
+                    )
 
-            # Move to next day
             current = add_days(current, 1)
 
     return "\n".join(msg)
 
 
-from datetime import datetime, time
 
-# ----------------------------------------------------------
-# Helper: Minutes difference
-# ----------------------------------------------------------
+# =====================================================================
+# UTILITY – MINUTES BETWEEN TWO TIMES
+# =====================================================================
 def minutes_between(t1, t2):
-    return int((t2 - t1).total_seconds() / 60)
+    diff = int((t2 - t1).total_seconds() / 60)
+    print(f"[DEBUG] minutes_between → {diff} minutes")
+    return diff
 
 
-# ----------------------------------------------------------
-# Get total late minutes based on shift periods
-# ----------------------------------------------------------
+
+# =====================================================================
+# GET EMPLOYEE LATE MINUTES WITH DEBUG LOGGING
+# =====================================================================
 @frappe.whitelist()
 def get_employee_late_minutes(employee, start_date, end_date):
 
-    start_dt = datetime.combine(frappe.utils.getdate(start_date), datetime.min.time())
-    end_dt = datetime.combine(frappe.utils.getdate(end_date), datetime.max.time())
+    frappe.msgprint(f"⏱ Calculating late minutes for {employee}")
+    print(f"[DEBUG] get_employee_late_minutes START for {employee}")
+
+    start_dt = datetime.combine(getdate(start_date), datetime.min.time())
+    end_dt = datetime.combine(getdate(end_date), datetime.max.time())
 
     logs = frappe.get_all(
         "Employee Checkin",
@@ -90,86 +105,104 @@ def get_employee_late_minutes(employee, start_date, end_date):
         order_by="time asc"
     )
 
+    print(f"[DEBUG] Total checkins found: {len(logs)}")
     last_in = None
     total_late_minutes = 0
 
     for log in logs:
+        print(f"[DEBUG] Log: {log.log_type} - {log.time}")
 
         if log.log_type == "IN":
             last_in = log.time
+            print(f"[DEBUG] IN stored: {last_in}")
 
         elif log.log_type == "OUT" and last_in:
 
-            # Skip Fridays
+            # Skip Friday
             if last_in.weekday() == 4:
+                print(f"[DEBUG] Friday detected → Skipping late calculation")
                 last_in = None
                 continue
 
             in_time = last_in.time()
+            print(f"[DEBUG] Checking shift for IN time: {in_time}")
 
-            # ----------------------------------------------------
-            # SHIFT MATCHING RULES
-            # ----------------------------------------------------
-
-            # 1️⃣ Morning Shift (09:00 → 12:00)
+            # MORNING SHIFT
             if time(9, 0) <= in_time < time(12, 0):
+                print("[DEBUG] Morning shift detected")
                 threshold = time(9, 15)
+
                 if in_time > threshold:
                     late = minutes_between(
                         datetime.combine(last_in.date(), threshold),
                         last_in
                     )
                     total_late_minutes += late
+                    print(f"[DEBUG] Late (morning): {late}")
 
                 last_in = None
                 continue
 
-            # 2️⃣ Evening Shift (16:00 → 21:00)
+            # EVENING SHIFT
             if time(16, 0) <= in_time < time(21, 0):
+                print("[DEBUG] Evening shift detected")
                 threshold = time(16, 15)
+
                 if in_time > threshold:
                     late = minutes_between(
                         datetime.combine(last_in.date(), threshold),
                         last_in
                     )
                     total_late_minutes += late
+                    print(f"[DEBUG] Late (evening): {late}")
 
                 last_in = None
                 continue
 
-            # ----------------------------------------------------
-            # Other time periods → NOT a shift → ignore
-            # ----------------------------------------------------
+            print("[DEBUG] No shift matched → ignoring")
             last_in = None
 
+    print(f"[DEBUG] Total late minutes for {employee}: {total_late_minutes}")
     return total_late_minutes
 
 
 
-
-# ----------------------------------------------------------
-# Main calculation: salary deduction based on late minutes
-# ----------------------------------------------------------
+# =====================================================================
+# SALARY DEDUCTION CALCULATION WITH DEBUG LOGGING
+# =====================================================================
 @frappe.whitelist()
 def calculate_late_deduction(employee, start_date, end_date):
+
+    print(f"[DEBUG] calculate_late_deduction for {employee}")
+
     late_minutes = get_employee_late_minutes(employee, start_date, end_date)
+    print(f"[DEBUG] Late minutes: {late_minutes}")
 
     emp = frappe.get_doc("Employee", employee)
     salary = emp.custom_basic_salary or 0
 
+    print(f"[DEBUG] Employee salary: {salary}")
+
     salary_per_day = salary / 30
-    salary_per_minute = salary_per_day / 480  # 8 hours × 60 minutes
+    salary_per_minute = salary_per_day / 480
 
     deduction_value = late_minutes * salary_per_minute
+
+    print(f"[DEBUG] Deduction value: {deduction_value}")
 
     return late_minutes, deduction_value
 
 
-# ----------------------------------------------------------
-# Called when Payroll Entry is submitted
-# ----------------------------------------------------------
+
+# =====================================================================
+# MAIN FUNCTION – UPDATE SALARY STRUCTURE
+# =====================================================================
 @frappe.whitelist()
 def LateMin(name):
+
+    frappe.msgprint(f"🚀 LateMin STARTED for payroll: {name}")
+    print(f"[DEBUG] LateMin STARTED for payroll: {name}")
+
     payroll = frappe.get_doc("Payroll Entry", name)
     start_date = payroll.start_date
     end_date = payroll.end_date
@@ -178,12 +211,14 @@ def LateMin(name):
 
     for row in payroll.employees:
         employee = row.employee
+        print(f"[DEBUG] Processing {employee}")
 
         late_minutes, deduction_value = calculate_late_deduction(
             employee, start_date, end_date
         )
 
-        # Update SSA
+        print(f"[DEBUG] Updating SSA for {employee}")
+
         ssa = frappe.get_all(
             "Salary Structure Assignment",
             filters={"employee": employee},
@@ -199,6 +234,7 @@ def LateMin(name):
                 late_minutes
             )
 
+            frappe.msgprint(f"✔ {employee} → {late_minutes} min late")
             updated_employees.append(f"{employee}: {late_minutes} min")
 
     frappe.db.commit()
