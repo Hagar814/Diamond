@@ -76,6 +76,9 @@ def validate_payroll_half_day(name):
 
 
 
+
+
+
 # =====================================================================
 # UTILITY – MINUTES BETWEEN TWO TIMES
 # =====================================================================
@@ -85,14 +88,9 @@ def minutes_between(t1, t2):
     return diff
 
 
-
 # =====================================================================
-# GET EMPLOYEE LATE MINUTES WITH DEBUG LOGGING
+# GET EMPLOYEE LATE MINUTES WITH FINAL FIXED LOGIC
 # =====================================================================
-# =====================================================================
-# SHIFT-BASED LATE CALCULATION (FINAL RULES)
-# =====================================================================
-
 def get_employee_late_minutes(employee, start_date, end_date):
     print(f"[DEBUG] get_employee_late_minutes START for {employee}")
 
@@ -110,63 +108,94 @@ def get_employee_late_minutes(employee, start_date, end_date):
     total_late = 0
 
     for log in logs:
+
+        # ----- Capture IN -----
         if log.log_type == "IN":
             last_in = log.time
             continue
 
+        # ----- Process OUT -----
         if log.log_type == "OUT" and last_in:
+
             in_t = last_in.time()
             out_t = log.time.time()
 
-            # ----- MORNING SHIFT -----
+            # -------- MORNING SHIFT (9–12) --------
             if time(9, 0) <= in_t < time(12, 0):
 
-                required_minutes = 180  # 3h = 180 min
+                required = 180  # 3 hours
 
-                # IN <= 9:15 → spent starts from 9:00
-                start_count_from = time(9, 0) if in_t <= time(9, 15) else in_t
+                # IN <= 9:15 → count from 9:00
+                if in_t <= time(9, 15):
+                    start_from = time(9, 0)
+                else:
+                    start_from = in_t
 
                 spent = minutes_between(
-                    datetime.combine(last_in.date(), start_count_from),
+                    datetime.combine(last_in.date(), start_from),
                     log.time
                 )
 
-                late = max(0, required_minutes - spent)
+                late = max(0, required - spent)
                 total_late += late
-
                 print(f"[DEBUG] Morning late: {late}")
+
                 last_in = None
                 continue
 
-            # ----- EVENING SHIFT -----
+            # -------- EVENING SHIFT (16–21) --------
             if time(16, 0) <= in_t < time(21, 0):
 
-                required_minutes = 300  # 5h = 300 min
+                required = 300  # 5 hours
 
-                # IN <= 16:15 → spent starts from 16:00
-                start_count_from = time(16, 0) if in_t <= time(16, 15) else in_t
+                # IN <= 16:15 → count from 16:00
+                if in_t <= time(16, 15):
+                    start_from = time(16, 0)
+                else:
+                    start_from = in_t
 
                 spent = minutes_between(
-                    datetime.combine(last_in.date(), start_count_from),
+                    datetime.combine(last_in.date(), start_from),
                     log.time
                 )
 
-                late = max(0, required_minutes - spent)
+                late = max(0, required - spent)
                 total_late += late
-
                 print(f"[DEBUG] Evening late: {late}")
+
                 last_in = None
                 continue
 
             last_in = None
 
-    print(f"[DEBUG] Total late minutes: {total_late}")
+    print(f"[DEBUG] TOTAL late minutes: {total_late}")
     return total_late
 
 
+# =====================================================================
+# SALARY DEDUCTION CALCULATION
+# =====================================================================
+@frappe.whitelist()
+def calculate_late_deduction(employee, start_date, end_date):
+
+    late_minutes = get_employee_late_minutes(employee, start_date, end_date)
+
+    emp = frappe.get_doc("Employee", employee)
+    salary = emp.custom_basic_salary or 0
+
+    salary_per_day = salary / 30
+    salary_per_minute = salary_per_day / 480
+
+    deduction = late_minutes * salary_per_minute
+
+    print(f"[DEBUG] Late: {late_minutes}, Deduction: {deduction}")
+
+    return late_minutes, deduction
 
 
-
+# =====================================================================
+# MAIN FUNCTION – UPDATE SALARY STRUCTURE
+# =====================================================================
 @frappe.whitelist()
 def LateMin(name):
 
@@ -177,19 +206,16 @@ def LateMin(name):
     start_date = payroll.start_date
     end_date = payroll.end_date
 
-    updated_employees = []
+    updated = []
 
     for row in payroll.employees:
         employee = row.employee
-        print(f"[DEBUG] Processing {employee}")
 
         late_minutes, deduction_value = calculate_late_deduction(
             employee, start_date, end_date
         )
 
-        print(f"[DEBUG] Late minutes: {late_minutes}, Deduction value: {deduction_value}")
-        print(f"[DEBUG] Updating SSA for {employee}")
-
+        # Update Salary Structure Assignment
         ssa = frappe.get_all(
             "Salary Structure Assignment",
             filters={"employee": employee},
@@ -198,7 +224,6 @@ def LateMin(name):
         )
 
         if ssa:
-            # Save deduction value (currency) instead of minutes
             frappe.db.set_value(
                 "Salary Structure Assignment",
                 ssa[0].name,
@@ -207,8 +232,9 @@ def LateMin(name):
             )
 
             frappe.msgprint(f"✔ {employee} → Deduction: {deduction_value:.2f}")
-            updated_employees.append(f"{employee}: {deduction_value:.2f}")
+            updated.append(f"{employee}: {deduction_value:.2f}")
 
     frappe.db.commit()
 
-    return "Late Deduction Updated:\n" + "\n".join(updated_employees)
+    return "Late Deduction Updated:\n" + "\n".join(updated)
+
