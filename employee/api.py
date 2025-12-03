@@ -106,65 +106,52 @@ def get_employee_late_minutes(employee, start_date, end_date):
     )
 
     print(f"[DEBUG] Total checkins found: {len(logs)}")
-    last_in = None
     total_late_minutes = 0
 
     for log in logs:
-        print(f"[DEBUG] Log: {log.log_type} - {log.time}")
+        if log.log_type != "IN":
+            continue  # Only process IN logs
 
-        if log.log_type == "IN":
-            last_in = log.time
-            print(f"[DEBUG] IN stored: {last_in}")
+        last_in = log.time
+        print(f"[DEBUG] Log: IN - {last_in}")
 
-        elif log.log_type == "OUT" and last_in:
+        # Skip Fridays
+        if last_in.weekday() == 4:
+            print(f"[DEBUG] Friday detected → Skipping late calculation")
+            continue
 
-            # Skip Friday
-            if last_in.weekday() == 4:
-                print(f"[DEBUG] Friday detected → Skipping late calculation")
-                last_in = None
-                continue
+        in_time = last_in.time()
+        print(f"[DEBUG] Checking shift for IN time: {in_time}")
 
-            in_time = last_in.time()
-            print(f"[DEBUG] Checking shift for IN time: {in_time}")
+        # MORNING SHIFT (09:00 → 12:00)
+        if time(9, 0) <= in_time < time(12, 0):
+            print("[DEBUG] Morning shift detected")
+            threshold = time(9, 15)
+            if in_time > threshold:
+                late = minutes_between(
+                    datetime.combine(last_in.date(), threshold),
+                    last_in
+                )
+                total_late_minutes += late
+                print(f"[DEBUG] Late (morning): {late}")
 
-            # MORNING SHIFT
-            if time(9, 0) <= in_time < time(12, 0):
-                print("[DEBUG] Morning shift detected")
-                threshold = time(9, 15)
+        # EVENING SHIFT (16:00 → 21:00)
+        elif time(16, 0) <= in_time < time(21, 0):
+            print("[DEBUG] Evening shift detected")
+            threshold = time(16, 15)
+            if in_time > threshold:
+                late = minutes_between(
+                    datetime.combine(last_in.date(), threshold),
+                    last_in
+                )
+                total_late_minutes += late
+                print(f"[DEBUG] Late (evening): {late}")
 
-                if in_time > threshold:
-                    late = minutes_between(
-                        datetime.combine(last_in.date(), threshold),
-                        last_in
-                    )
-                    total_late_minutes += late
-                    print(f"[DEBUG] Late (morning): {late}")
-
-                last_in = None
-                continue
-
-            # EVENING SHIFT
-            if time(16, 0) <= in_time < time(21, 0):
-                print("[DEBUG] Evening shift detected")
-                threshold = time(16, 15)
-
-                if in_time > threshold:
-                    late = minutes_between(
-                        datetime.combine(last_in.date(), threshold),
-                        last_in
-                    )
-                    total_late_minutes += late
-                    print(f"[DEBUG] Late (evening): {late}")
-
-                last_in = None
-                continue
-
+        else:
             print("[DEBUG] No shift matched → ignoring")
-            last_in = None
 
     print(f"[DEBUG] Total late minutes for {employee}: {total_late_minutes}")
     return total_late_minutes
-
 
 
 # =====================================================================
