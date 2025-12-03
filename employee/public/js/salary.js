@@ -1,27 +1,13 @@
 frappe.ui.form.on("Payroll Entry", {
-    validate: function(frm) {
-        console.log("validate");
+    validate(frm) {
         frappe.call({
             method: "employee.api.validate_payroll_half_day",
-            args: {
-                name: frm.doc.name
-            },
-            callback: function(r) {
-                if (r.message) {
-                    frappe.msgprint(r.message);
-                    frm.reload_doc();
-                }
-            }
+            args: { name: frm.doc.name }
         });
 
-         frappe.call({
+        frappe.call({
             method: "employee.api.LateMin",
-            args: { name: frm.doc.name },
-            callback(r) {
-                if (r.message) {
-                    frappe.msgprint(r.message);
-                }
-            }
+            args: { name: frm.doc.name }
         });
     }
 });
