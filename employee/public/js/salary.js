@@ -13,5 +13,15 @@ frappe.ui.form.on("Payroll Entry", {
                 }
             }
         });
+
+         frappe.call({
+            method: "employee.api.LateMin",
+            args: { name: frm.doc.name },
+            callback(r) {
+                if (r.message) {
+                    frappe.msgprint(r.message);
+                }
+            }
+        });
     }
 });
