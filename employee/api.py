@@ -92,6 +92,9 @@ def minutes_between(t1, t2):
 # GET EMPLOYEE LATE MINUTES WITH FINAL RULES
 # =====================================================================
 
+# =====================================================================
+# GET EMPLOYEE LATE MINUTES WITH FINAL FIXED LOGIC (FRIDAY EXCLUDED)
+# =====================================================================
 def get_employee_late_minutes(employee, start_date, end_date):
     print(f"[DEBUG] get_employee_late_minutes START for {employee}")
 
@@ -110,65 +113,65 @@ def get_employee_late_minutes(employee, start_date, end_date):
 
     for log in logs:
 
-        # Capture IN
         if log.log_type == "IN":
             last_in = log.time
             continue
 
-        # Process OUT
         if log.log_type == "OUT" and last_in:
+
+            # Skip Friday completely
+            if last_in.weekday() == 4:
+                print(f"[DEBUG] Friday detected → skipping {last_in.date()}")
+                last_in = None
+                continue
 
             in_t = last_in.time()
             out_t = log.time.time()
 
-            # -------- MORNING SHIFT --------
+            # -------- MORNING SHIFT (9:00–12:00) --------
             if time(9, 0) <= in_t < time(12, 0):
-
+                # Determine required minutes
                 if in_t <= time(9, 15):
-                    required = 180  # 9:00–12:00
+                    required = 180
                     start_from = time(9, 0)
                 else:
-                    required = 165  # late start reduces requirement
+                    required = 165
                     start_from = in_t
 
                 spent = minutes_between(
                     datetime.combine(last_in.date(), start_from),
                     log.time
                 )
-
                 late = max(0, required - spent)
                 total_late += late
                 print(f"[DEBUG] Morning late: {late}")
-
                 last_in = None
                 continue
 
-            # -------- EVENING SHIFT --------
+            # -------- EVENING SHIFT (16:00–21:00) --------
             if time(16, 0) <= in_t < time(21, 0):
-
                 if in_t <= time(16, 15):
-                    required = 300  # 16:00–21:00
+                    required = 300
                     start_from = time(16, 0)
                 else:
-                    required = 285  # late start reduces requirement
+                    required = 285
                     start_from = in_t
 
                 spent = minutes_between(
                     datetime.combine(last_in.date(), start_from),
                     log.time
                 )
-
                 late = max(0, required - spent)
                 total_late += late
                 print(f"[DEBUG] Evening late: {late}")
-
                 last_in = None
                 continue
 
             last_in = None
 
-    print(f"[DEBUG] TOTAL late minutes: {total_late}")
+    print(f"[DEBUG] TOTAL late minutes for {employee}: {total_late}")
     return total_late
+
 
 
 
