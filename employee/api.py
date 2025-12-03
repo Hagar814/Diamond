@@ -88,6 +88,10 @@ def minutes_between(t1, t2):
     return diff
 
 
+# =====================================================================
+# GET EMPLOYEE LATE MINUTES WITH FINAL RULES
+# =====================================================================
+
 def get_employee_late_minutes(employee, start_date, end_date):
     print(f"[DEBUG] get_employee_late_minutes START for {employee}")
 
@@ -106,26 +110,25 @@ def get_employee_late_minutes(employee, start_date, end_date):
 
     for log in logs:
 
-        # Handle IN
+        # Capture IN
         if log.log_type == "IN":
             last_in = log.time
             continue
 
-        # Handle OUT
+        # Process OUT
         if log.log_type == "OUT" and last_in:
 
             in_t = last_in.time()
             out_t = log.time.time()
 
-            # ----- MORNING SHIFT -----
+            # -------- MORNING SHIFT --------
             if time(9, 0) <= in_t < time(12, 0):
 
-                # IN <= 9:15
                 if in_t <= time(9, 15):
-                    required = 180    # expected worked minutes
+                    required = 180  # 9:00–12:00
                     start_from = time(9, 0)
                 else:
-                    required = 165    # reduced required minutes
+                    required = 165  # late start reduces requirement
                     start_from = in_t
 
                 spent = minutes_between(
@@ -140,15 +143,14 @@ def get_employee_late_minutes(employee, start_date, end_date):
                 last_in = None
                 continue
 
-            # ----- EVENING SHIFT -----
+            # -------- EVENING SHIFT --------
             if time(16, 0) <= in_t < time(21, 0):
 
-                # IN <= 16:15
                 if in_t <= time(16, 15):
-                    required = 300
+                    required = 300  # 16:00–21:00
                     start_from = time(16, 0)
                 else:
-                    required = 285
+                    required = 285  # late start reduces requirement
                     start_from = in_t
 
                 spent = minutes_between(
@@ -165,10 +167,9 @@ def get_employee_late_minutes(employee, start_date, end_date):
 
             last_in = None
 
-    print(f"[DEBUG] TOTAL LATE MINUTES: {total_late}")
+    print(f"[DEBUG] TOTAL late minutes: {total_late}")
     return total_late
-late minutes: {total_late}")
-    return total_late
+
 
 
 # =====================================================================
