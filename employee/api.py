@@ -280,10 +280,11 @@ def LateMin(name):
 @frappe.whitelist()
 def calculate_overtime_for_salary_slip(salary_slip, employee, start_date, end_date):
     print(f"[DEBUG] Calculating overtime for Salary Slip: {salary_slip}")
+    print(f"[DEBUG] Employee: {employee}, Period: {start_date} → {end_date}")
 
     overtime = get_employee_overtime(employee, start_date, end_date)
 
-    print(f"[DEBUG] Overtime for {employee}: {overtime}")
+    print(f"[DEBUG] Total overtime for {employee}: {overtime}")
 
     return {
         "overtime_amount": overtime
@@ -295,18 +296,28 @@ def get_employee_overtime(employee, start_date, end_date):
     Calculate total overtime amount for an employee in a given period.
     """
 
+    print(f"[DEBUG] Fetching Overtime logs for Employee: {employee}")
+    print(f"[DEBUG] Date range: {start_date} → {end_date}")
+
     # Fetch all approved overtime records for the employee in the period
     overtime_logs = frappe.db.get_all(
         "Overtime",
         filters={
             "employee": employee,
-            "posting_date": ["between", [start_date, end_date]]
+            "posting_date": ["between", [start_date, end_date]],
+            "status": "Approved"  # ensure only approved OT
         },
-        fields=["total_amount_of_money"]
+        fields=["name", "posting_date", "total_amount_of_money"]
     )
+
+    print(f"[DEBUG] Found {len(overtime_logs)} overtime logs")
+
+    for log in overtime_logs:
+        print(f"[DEBUG] Overtime log: {log}")
 
     # Sum all total_amount_of_money
     total_overtime = sum([flt(log.total_amount_of_money) for log in overtime_logs])
 
-    return total_overtime
+    print(f"[DEBUG] Computed total overtime: {total_overtime}")
 
+    return total_overtime
