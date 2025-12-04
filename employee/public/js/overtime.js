@@ -12,7 +12,7 @@ frappe.ui.form.on('Overtime', {
 
 // Helper function to calculate total_amount_of_money
 function calculate_total_amount(frm) {
-    console.log("calculate_total_amount");
+    
     if (!frm.doc.employee || !frm.doc.total_working_hours) {
         frm.set_value('total_amount_of_money', 0);
         return;
@@ -29,5 +29,7 @@ function calculate_total_amount(frm) {
         let total_amount = frm.doc.total_working_hours * hourly_rate * 1.5;
 
         frm.set_value('total_amount_of_money', total_amount);
+
+        frm.save();
     });
 }

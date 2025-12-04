@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import getdate, add_days, now_datetime, get_datetime
+from frappe.utils import getdate, add_days, now_datetime, get_datetime, flt
 from datetime import datetime, time
 
 # =====================================================================
@@ -277,3 +277,44 @@ def LateMin(name):
 
     return "Late Deduction Updated:\n" + "\n".join(updated)
 
+
+@frappe.whitelist()
+
+def update_overtime_on_payroll_validate(name):
+
+     # Fetch the Payroll Entry document
+    doc = frappe.get_doc("Payroll Entry", name)
+    start_date = doc.start_date
+    end_date = doc.end_date
+
+    for row in doc.employees:
+        employee = row.employee
+
+        # Fetch all overtime documents for this employee in the payroll period
+        overtime_entries = frappe.get_all(
+            "Overtime",
+            filters={
+                "employee": employee,
+                "posting_date": ["between", [start_date, end_date]]
+            },
+            fields=["total_amount_of_money"]
+        )
+
+        # Sum total overtime amount
+        total_overtime = flt(sum([ot.total_amount_of_money for ot in overtime_entries]))
+
+        # Update Salary Structure Assignment
+        ssa = frappe.get_all(
+            "Salary Structure Assignment",
+            filters={"employee": employee},
+            fields=["name"],
+            limit=1
+        )
+
+        if ssa:
+            frappe.db.set_value(
+                "Salary Structure Assignment",
+                ssa[0].name,
+                "custom_overtime",
+                total_overtime
+            )
