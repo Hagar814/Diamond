@@ -304,8 +304,7 @@ def get_employee_overtime(employee, start_date, end_date):
         "Overtime",
         filters={
             "employee": employee,
-            "posting_date": ["between", [start_date, end_date]],
-            "status": "Approved"  # ensure only approved OT
+            "posting_date": ["between", [start_date, end_date]]
         },
         fields=["name", "posting_date", "total_amount_of_money"]
     )
