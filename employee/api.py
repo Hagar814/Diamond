@@ -290,7 +290,7 @@ def calculate_overtime_for_salary_slip(salary_slip, employee, start_date, end_da
         "overtime_amount": overtime
     }
 
-
+@frappe.whitelist()
 def get_employee_overtime(employee, start_date, end_date):
     """
     Calculate total overtime amount for an employee in a given period.
@@ -320,3 +320,37 @@ def get_employee_overtime(employee, start_date, end_date):
     print(f"[DEBUG] Computed total overtime: {total_overtime}")
 
     return total_overtime
+
+@frappe.whitelist()
+def adjust_friday_attendance_on_refresh(doc, method):
+    """
+    Check attendance for the salary slip period.
+    If employee has attendance on Friday, add 0.5 to payment_days
+    and subtract 0.5 from absent_days.
+    """
+    employee = doc.employee
+    start_date = doc.start_date
+    end_date = doc.end_date
+
+    # Fetch attendance for the employee in this period
+    attendances = frappe.get_all(
+        "Attendance",
+        filters={
+            "employee": employee,
+            "attendance_date": ["between", [start_date, end_date]],
+            "status": "Present"
+        },
+        fields=["attendance_date"]
+    )
+
+    added_days = 0
+    for att in attendances:
+        weekday = getdate(att.attendance_date).weekday()  # Monday=0 ... Sunday=6
+        if weekday == 4:  # Friday
+            added_days += 0.5
+
+    if added_days > 0:
+        doc.payment_days = (doc.payment_days or 0) + added_days
+        doc.absent_days = (doc.absent_days or 0) - added_days
+
+        frappe.msgprint(f"✅ Friday attendance found. Adjusted payment_days by +{added_days} and absent_days by -{added_days}")

@@ -3,6 +3,17 @@ frappe.ui.form.on("Salary Slip", {
         if (frm.doc.docstatus === 0) {
             calculate_overtime(frm);
         }
+        frappe.call({
+            method: "employee.api.adjust_friday_attendance_on_refresh",
+            args: { name: frm.doc.name },
+            callback: function(r) {
+                console.log("✅ adjust_friday_attendance_on_refresh response:", r.message);
+            },
+            error: function(err) {
+                console.error("❌ adjust_friday_attendance_on_refresh error:", err);
+            }
+        });
+
     }
 });
 
