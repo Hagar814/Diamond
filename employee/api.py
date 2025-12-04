@@ -164,7 +164,7 @@ def get_employee_late_minutes(employee, start_date, end_date):
 
             # ----- FACTORY SHIFT (9:00–16:45) -----
             if last_shift == "Factory Shift":
-                required = 450  # minutes for Factory Shift
+                required = 525  # minutes for Factory Shift
                 start_9 = datetime.combine(last_in.date(), time(9, 0))
                 end_1645 = datetime.combine(last_in.date(), time(16, 45))
                 end_1700 = datetime.combine(last_in.date(), time(17, 0))
@@ -174,28 +174,28 @@ def get_employee_late_minutes(employee, start_date, end_date):
 
                 print(f"[DEBUG][FACTORY] IN={in_t} OUT={out_t}")
 
-                # 1️⃣ In <=9:15 and Out >=16:45 → 0 late
-                if in_t <= time(9, 15) and out_t >= time(16, 45):
+                # 1️⃣ In <=8:15 and Out >=16:45 → 0 late
+                if in_t <= time(8, 15) and out_t >= time(16, 45):
                     late = 0
-                    print("[DEBUG][FACTORY] Case 1: In<=9:15 & Out>=16:45 → late=0")
+                    print("[DEBUG][FACTORY] Case 1: In<=8:15 & Out>=16:45 → late=0")
 
-                # 2️⃣ In >9:15 and Out >=16:45 → late = 450 - duration(in → 17:00)
-                elif in_t > time(9, 15) and out_t >= time(16, 45):
+                # 2️⃣ In >8:15 and Out >=16:45 → late = 525 - duration(in → 17:00)
+                elif in_t > time(8, 15) and out_t >= time(16, 45):
                     duration = minutes_between(check_in_dt, end_1700)
                     late = max(0, required - duration)
-                    print(f"[DEBUG][FACTORY] Case 2: In>9:15 & Out>=16:45 → duration={duration}, late={late}")
+                    print(f"[DEBUG][FACTORY] Case 2: In>8:15 & Out>=16:45 → duration={duration}, late={late}")
 
-                # 3️⃣ In <=9:15 and Out <16:45 → late = 450 - duration(9:00 → out)
-                elif in_t <= time(9, 15) and out_t < time(16, 45):
+                # 3️⃣ In <=8:15 and Out <16:45 → late = 525 - duration(8:00 → out)
+                elif in_t <= time(8, 15) and out_t < time(16, 45):
                     duration = minutes_between(start_9, check_out_dt)
                     late = max(0, required - duration)
-                    print(f"[DEBUG][FACTORY] Case 3: In<=9:15 & Out<16:45 → duration={duration}, late={late}")
+                    print(f"[DEBUG][FACTORY] Case 3: In<=8:15 & Out<16:45 → duration={duration}, late={late}")
 
-                # 4️⃣ In >9:15 and Out <16:45 → late = 450 - duration(in → out)
+                # 4️⃣ In >8:15 and Out <16:45 → late = 510 - duration(in → out)
                 else:
                     duration = minutes_between(check_in_dt, check_out_dt)
-                    late = max(0, required - duration)
-                    print(f"[DEBUG][FACTORY] Case 4: In>9:15 & Out<16:45 → duration={duration}, late={late}")
+                    late = max(0, 510 - duration)
+                    print(f"[DEBUG][FACTORY] Case 4: In>8:15 & Out<16:45 → duration={duration}, late={late}")
 
                 total_late += late
                 print(f"[DEBUG] Factory late: {late}")
