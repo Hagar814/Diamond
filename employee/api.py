@@ -321,18 +321,19 @@ def get_employee_overtime(employee, start_date, end_date):
 
     return total_overtime
 
-@frappe.whitelist()
-def adjust_friday_attendance_on_refresh(doc, method):
-    """
-    Check attendance for the salary slip period.
-    If employee has attendance on Friday, add 0.5 to payment_days
-    and subtract 0.5 from absent_days.
-    """
-    employee = doc.employee
-    start_date = doc.start_date
-    end_date = doc.end_date
 
-    # Fetch attendance for the employee in this period
+@frappe.whitelist()
+def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
+    """
+    Check attendance for the employee in the given period.
+    If attendance is found on Friday → +0.5 payment_days, -0.5 absent_days.
+    """
+
+    print("[DEBUG] Friday Attendance Check START")
+    print(f"[DEBUG] Employee: {employee}")
+    print(f"[DEBUG] Period: {start_date} → {end_date}")
+
+    # Fetch attendance
     attendances = frappe.get_all(
         "Attendance",
         filters={
@@ -343,14 +344,17 @@ def adjust_friday_attendance_on_refresh(doc, method):
         fields=["attendance_date"]
     )
 
+    print(f"[DEBUG] Attendance records found: {len(attendances)}")
+
     added_days = 0
+
     for att in attendances:
         weekday = getdate(att.attendance_date).weekday()  # Monday=0 ... Sunday=6
-        if weekday == 4:  # Friday
+
+        if weekday == 4:  # 4 = Friday
             added_days += 0.5
+            print(f"[DEBUG] Friday attendance: {att.attendance_date}")
 
-    if added_days > 0:
-        doc.payment_days = (doc.payment_days or 0) + added_days
-        doc.absent_days = (doc.absent_days or 0) - added_days
+    print(f"[DEBUG] Total Friday days to add: {added_days}")
 
-        frappe.msgprint(f"✅ Friday attendance found. Adjusted payment_days by +{added_days} and absent_days by -{added_days}")
+    return {"added_days": added_days}
