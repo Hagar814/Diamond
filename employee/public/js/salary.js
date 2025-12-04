@@ -28,13 +28,13 @@ frappe.ui.form.on("Payroll Entry", {
 
         // Call late minutes calculation
         frappe.call({
-            method: "employee.api.LateMin",
+            method: "employee.api.update_overtime_on_payroll_validate",
             args: { name: frm.doc.name },
             callback: function(r) {
-                console.log("✅ LateMin response:", r.message);
+                console.log("✅ update_overtime_on_payroll_validate response:", r.message);
             },
             error: function(err) {
-                console.error("❌ LateMin error:", err);
+                console.error("❌ update_overtime_on_payroll_validate error:", err);
             }
         });
 
