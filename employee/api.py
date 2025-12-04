@@ -277,20 +277,25 @@ def LateMin(name):
 
     return "Late Deduction Updated:\n" + "\n".join(updated)
 
-
 @frappe.whitelist()
-
 def update_overtime_on_payroll_validate(name):
 
-     # Fetch the Payroll Entry document
+    logger = frappe.logger("overtime_debug")
+
+    logger.info(f"Starting overtime update for Payroll Entry: {name}")
+
+    # Fetch payroll doc
     doc = frappe.get_doc("Payroll Entry", name)
+    logger.debug(f"Loaded Payroll Entry: {doc.name}, Start: {doc.start_date}, End: {doc.end_date}")
+
     start_date = doc.start_date
     end_date = doc.end_date
 
     for row in doc.employees:
         employee = row.employee
+        logger.info(f"Processing employee: {employee}")
 
-        # Fetch all overtime documents for this employee in the payroll period
+        # Fetch overtime records
         overtime_entries = frappe.get_all(
             "Overtime",
             filters={
@@ -300,16 +305,20 @@ def update_overtime_on_payroll_validate(name):
             fields=["total_amount_of_money"]
         )
 
-        # Sum total overtime amount
-        total_overtime = flt(sum([ot.total_amount_of_money for ot in overtime_entries]))
+        logger.debug(f"Overtime entries for {employee}: {overtime_entries}")
 
-        # Update Salary Structure Assignment
+        total_overtime = flt(sum([ot.total_amount_of_money for ot in overtime_entries]))
+        logger.info(f"Total overtime for {employee}: {total_overtime}")
+
+        # Find salary structure assignment
         ssa = frappe.get_all(
             "Salary Structure Assignment",
             filters={"employee": employee},
             fields=["name"],
             limit=1
         )
+
+        logger.debug(f"SSA for {employee}: {ssa}")
 
         if ssa:
             frappe.db.set_value(
@@ -318,3 +327,11 @@ def update_overtime_on_payroll_validate(name):
                 "custom_overtime",
                 total_overtime
             )
+            logger.info(f"Updated SSA {ssa[0].name} with overtime {total_overtime}")
+        else:
+            logger.warning(f"No Salary Structure Assignment found for employee {employee}")
+
+    logger.info("Finished overtime update process.")
+
+    # Optional message so you see something instantly
+    frappe.msgprint("Overtime recalculation completed. Check logs for details.")
