@@ -291,18 +291,22 @@ def calculate_overtime_for_salary_slip(salary_slip, employee, start_date, end_da
 
 
 def get_employee_overtime(employee, start_date, end_date):
-    logs = frappe.db.get_all(
-        "Overtime Request",
+    """
+    Calculate total overtime amount for an employee in a given period.
+    """
+
+    # Fetch all approved overtime records for the employee in the period
+    overtime_logs = frappe.db.get_all(
+        "Overtime",
         filters={
             "employee": employee,
-            "date": ["between", [start_date, end_date]],
-            "status": "Approved",
+            "posting_date": ["between", [start_date, end_date]]
         },
-        fields=["hours", "rate"]
+        fields=["total_amount_of_money"]
     )
 
-    total = 0
-    for log in logs:
-        total += float(log.hours) * float(log.rate)
+    # Sum all total_amount_of_money
+    total_overtime = sum([flt(log.total_amount_of_money) for log in overtime_logs])
 
-    return total
+    return total_overtime
+
