@@ -9,7 +9,8 @@ app_license = "mit"
 # Includes in <head>
 # ------------------
 doctype_js = {
-    "Payroll Entry": "public/js/salary.js"
+    "Payroll Entry": "public/js/salary.js",
+    "Overtime": "public/js/overtime.js"
 }
 
 # doc_events = {
