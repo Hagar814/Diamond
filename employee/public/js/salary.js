@@ -25,17 +25,5 @@ frappe.ui.form.on("Payroll Entry", {
                 console.error("❌ LateMin error:", err);
             }
         });
-    },
-    refresh(frm) {
-        frm.add_custom_button("Update Overtime", () => {
-            frappe.call({
-                method: "employee.api.update_overtime_on_payroll_validate",
-                args: { name: frm.doc.name },
-                freeze: true,
-                callback: r => {
-                    frappe.msgprint("Overtime Updated Successfully!");
-                }
-            });
-        });
     }
 });

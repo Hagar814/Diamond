@@ -10,7 +10,8 @@ app_license = "mit"
 # ------------------
 doctype_js = {
     "Payroll Entry": "public/js/salary.js",
-    "Overtime": "public/js/overtime.js"
+    "Overtime": "public/js/overtime.js",
+    "Salary Slip": "public/js/salarySlip.js"
 }
 
 # doc_events = {

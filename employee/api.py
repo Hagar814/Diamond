@@ -278,72 +278,31 @@ def LateMin(name):
     return "Late Deduction Updated:\n" + "\n".join(updated)
 
 @frappe.whitelist()
-@frappe.whitelist()
-def update_overtime_on_payroll_validate(name):
-    import frappe
-    from frappe.utils import flt
+def calculate_overtime_for_salary_slip(salary_slip, employee, start_date, end_date):
+    print(f"[DEBUG] Calculating overtime for Salary Slip: {salary_slip}")
 
-    print("\n================ DEBUG: START OVERTIME CALCULATION ================")
-    print(f"[DEBUG] Payroll Entry: {name}")
+    overtime = get_employee_overtime(employee, start_date, end_date)
 
-    # Load payroll
-    try:
-        doc = frappe.get_doc("Payroll Entry", name)
-        print(f"[DEBUG] Loaded Payroll Entry: {doc.name}")
-    except Exception as e:
-        print(f"[ERROR] Failed to load Payroll Entry: {e}")
-        return
+    print(f"[DEBUG] Overtime for {employee}: {overtime}")
 
-    start_date = doc.start_date
-    end_date = doc.end_date
+    return {
+        "overtime_amount": overtime
+    }
 
-    print(f"[DEBUG] Period: {start_date} → {end_date}")
-    print(f"[DEBUG] Employees Count: {len(doc.employees)}")
 
-    for row in doc.employees:
-        employee = row.employee
-        print(f"\n[DEBUG][EMPLOYEE] Processing: {employee}")
+def get_employee_overtime(employee, start_date, end_date):
+    logs = frappe.db.get_all(
+        "Overtime Request",
+        filters={
+            "employee": employee,
+            "date": ["between", [start_date, end_date]],
+            "status": "Approved",
+        },
+        fields=["hours", "rate"]
+    )
 
-        # Fetch overtime entries
-        overtime_entries = frappe.get_all(
-            "Overtime",
-            filters={
-                "employee": employee,
-                "posting_date": ["between", [start_date, end_date]]
-            },
-            fields=["total_amount_of_money"]
-        )
+    total = 0
+    for log in logs:
+        total += float(log.hours) * float(log.rate)
 
-        print(f"[DEBUG][{employee}] Overtime Entries: {overtime_entries}")
-
-        # Sum overtime
-        total_overtime = flt(sum([ot.total_amount_of_money for ot in overtime_entries]))
-
-        print(f"[DEBUG][{employee}] Total Overtime Amount = {total_overtime}")
-
-        # Fetch SSA
-        ssa = frappe.get_all(
-            "Salary Structure Assignment",
-            filters={"employee": employee},
-            fields=["name"],
-            limit=1
-        )
-
-        if not ssa:
-            print(f"[WARN][{employee}] No Salary Structure Assignment found!")
-            continue
-
-        ssa_name = ssa[0].name
-        print(f"[DEBUG][{employee}] Updating SSA {ssa_name} → custom_overtime = {total_overtime}")
-
-        frappe.db.set_value(
-            "Salary Structure Assignment",
-            ssa_name,
-            "custom_overtime",
-            total_overtime
-        )
-
-    print("\n================ DEBUG: END OVERTIME CALCULATION =================\n")
-
-    frappe.db.commit()
-    return "Overtime calculation completed"
+    return total
