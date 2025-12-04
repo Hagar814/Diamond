@@ -278,24 +278,33 @@ def LateMin(name):
     return "Late Deduction Updated:\n" + "\n".join(updated)
 
 @frappe.whitelist()
+@frappe.whitelist()
 def update_overtime_on_payroll_validate(name):
+    import frappe
+    from frappe.utils import flt
 
-    logger = frappe.logger("overtime_debug")
+    print("\n================ DEBUG: START OVERTIME CALCULATION ================")
+    print(f"[DEBUG] Payroll Entry: {name}")
 
-    logger.info(f"Starting overtime update for Payroll Entry: {name}")
-
-    # Fetch payroll doc
-    doc = frappe.get_doc("Payroll Entry", name)
-    logger.debug(f"Loaded Payroll Entry: {doc.name}, Start: {doc.start_date}, End: {doc.end_date}")
+    # Load payroll
+    try:
+        doc = frappe.get_doc("Payroll Entry", name)
+        print(f"[DEBUG] Loaded Payroll Entry: {doc.name}")
+    except Exception as e:
+        print(f"[ERROR] Failed to load Payroll Entry: {e}")
+        return
 
     start_date = doc.start_date
     end_date = doc.end_date
 
+    print(f"[DEBUG] Period: {start_date} → {end_date}")
+    print(f"[DEBUG] Employees Count: {len(doc.employees)}")
+
     for row in doc.employees:
         employee = row.employee
-        logger.info(f"Processing employee: {employee}")
+        print(f"\n[DEBUG][EMPLOYEE] Processing: {employee}")
 
-        # Fetch overtime records
+        # Fetch overtime entries
         overtime_entries = frappe.get_all(
             "Overtime",
             filters={
@@ -305,12 +314,14 @@ def update_overtime_on_payroll_validate(name):
             fields=["total_amount_of_money"]
         )
 
-        logger.debug(f"Overtime entries for {employee}: {overtime_entries}")
+        print(f"[DEBUG][{employee}] Overtime Entries: {overtime_entries}")
 
+        # Sum overtime
         total_overtime = flt(sum([ot.total_amount_of_money for ot in overtime_entries]))
-        logger.info(f"Total overtime for {employee}: {total_overtime}")
 
-        # Find salary structure assignment
+        print(f"[DEBUG][{employee}] Total Overtime Amount = {total_overtime}")
+
+        # Fetch SSA
         ssa = frappe.get_all(
             "Salary Structure Assignment",
             filters={"employee": employee},
@@ -318,20 +329,21 @@ def update_overtime_on_payroll_validate(name):
             limit=1
         )
 
-        logger.debug(f"SSA for {employee}: {ssa}")
+        if not ssa:
+            print(f"[WARN][{employee}] No Salary Structure Assignment found!")
+            continue
 
-        if ssa:
-            frappe.db.set_value(
-                "Salary Structure Assignment",
-                ssa[0].name,
-                "custom_overtime",
-                total_overtime
-            )
-            logger.info(f"Updated SSA {ssa[0].name} with overtime {total_overtime}")
-        else:
-            logger.warning(f"No Salary Structure Assignment found for employee {employee}")
+        ssa_name = ssa[0].name
+        print(f"[DEBUG][{employee}] Updating SSA {ssa_name} → custom_overtime = {total_overtime}")
 
-    logger.info("Finished overtime update process.")
+        frappe.db.set_value(
+            "Salary Structure Assignment",
+            ssa_name,
+            "custom_overtime",
+            total_overtime
+        )
 
-    # Optional message so you see something instantly
-    frappe.msgprint("Overtime recalculation completed. Check logs for details.")
+    print("\n================ DEBUG: END OVERTIME CALCULATION =================\n")
+
+    frappe.db.commit()
+    return "Overtime calculation completed"
