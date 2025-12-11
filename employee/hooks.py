@@ -11,9 +11,19 @@ app_license = "mit"
 doctype_js = {
     "Payroll Entry": "public/js/salary.js",
     "Overtime": "public/js/overtime.js",
-    "Salary Slip": "public/js/salarySlip.js"
+    "Salary Slip": "public/js/salarySlip.js",
+    "ZkTeco BioTime Settings'": "public/js/biotime.js"
 }
-
+scheduler_events = {
+    # 'all' runs every 4 minutes by default
+    "all": [
+        "employee.sync.sync_biotime_checkins"
+    ]
+    # Or, to run hourly:
+    # "hourly": [
+    #     "my_app.my_module.sync.sync_biotime_checkins"
+    # ]
+}
 # doc_events = {
 #     "Salary Structure Assignment": {
 #         "after_save": "employee.api.on_submit_salary_structure_assignment"
