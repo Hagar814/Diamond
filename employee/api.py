@@ -323,15 +323,24 @@ def get_employee_overtime(employee, start_date, end_date):
 
 
 @frappe.whitelist()
-def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
+def adjust_friday_and_showroom_attendance(employee, start_date, end_date):
     """
     Check attendance for the employee in the given period.
-    If attendance is found on Friday → +0.5 payment_days, -0.5 absent_days.
+    - If attendance is on Friday → +0.5 payment_days
+    - If attendance is on Showroom (Morning Period) → +0.5 payment_days
+      only if a Shift Assignment exists for that employee with shift_type = "Showroom (Morning Period)"
     """
 
-    print("[DEBUG] Friday Attendance Check START")
+    print("[DEBUG] Attendance Check START")
     print(f"[DEBUG] Employee: {employee}")
     print(f"[DEBUG] Period: {start_date} → {end_date}")
+
+    # Check if employee has Shift Assignment for Showroom (Morning Period)
+    shift_exists = frappe.db.exists(
+        "Shift Assignment",
+        {"employee": employee, "shift_type": "Showroom (Morning Period)"}
+    )
+    print(f"[DEBUG] Assigned to Showroom Shift: {shift_exists}")
 
     # Fetch attendance
     attendances = frappe.get_all(
@@ -341,7 +350,7 @@ def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
             "attendance_date": ["between", [start_date, end_date]],
             "status": "Present"
         },
-        fields=["attendance_date"]
+        fields=["attendance_date", "work_location"]
     )
 
     print(f"[DEBUG] Attendance records found: {len(attendances)}")
@@ -351,10 +360,16 @@ def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
     for att in attendances:
         weekday = getdate(att.attendance_date).weekday()  # Monday=0 ... Sunday=6
 
-        if weekday == 4:  # 4 = Friday
+        # Friday check
+        if weekday == 4:  # Friday
             added_days += 0.5
             print(f"[DEBUG] Friday attendance: {att.attendance_date}")
 
-    print(f"[DEBUG] Total Friday days to add: {added_days}")
+        # Showroom (Morning Period) check
+        if shift_exists and att.get("work_location") == "Showroom (Morning Period)":
+            added_days += 0.5
+            print(f"[DEBUG] Showroom (Morning Period) attendance: {att.attendance_date}")
+
+    print(f"[DEBUG] Total added days: {added_days}")
 
     return {"added_days": added_days}
