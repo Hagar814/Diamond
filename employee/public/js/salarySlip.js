@@ -11,34 +11,17 @@ frappe.ui.form.on("Salary Slip", {
 
         // 1️⃣ Calculate overtime (your function)
         calculate_overtime(frm);
-
-        // 2️⃣ Check Friday attendance
-        // frappe.call({
-        //     method: "employee.api.adjust_friday_attendance_on_refresh",
-        //     args: {
-        //         employee: frm.doc.employee,
-        //         start_date: frm.doc.start_date,
-        //         end_date: frm.doc.end_date
-        //     },
-        //     callback(r) {
-        //         if (!r.message) return;
-
-        //         let extra = r.message.added_days || 0;
-
-        //         if (extra > 0) {
-        //             frm.set_value("payment_days", (frm.doc.payment_days || 0) + extra);
-        //             frm.set_value("absent_days", (frm.doc.absent_days || 0) - extra);
-
-        //             frappe.show_alert({
-        //                 message: `Friday attendance found → +${extra} payment day(s)`,
-        //                 indicator: "green"
-        //             });
-        //         }
-
-        //         // Prevent running again
-        //         frm._friday_adjusted = true;
-        //     }
-        // });
+        frappe.call({
+            method: "employee.api.adjust_friday_attendance_on_refresh",
+            args: {
+                employee: frm.doc.employee,
+                start_date: frm.doc.start_date,
+                end_date: frm.doc.end_date
+            },
+            callback(r) {
+                console.log(r.message.added_days);
+            }
+        });
     }
 });
 

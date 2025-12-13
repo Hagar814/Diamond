@@ -322,39 +322,39 @@ def get_employee_overtime(employee, start_date, end_date):
     return total_overtime
 
 
-# @frappe.whitelist()
-# def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
-#     """
-#     Check attendance for the employee in the given period.
-#     If attendance is found on Friday → +0.5 payment_days, -0.5 absent_days.
-#     """
+@frappe.whitelist()
+def adjust_friday_attendance_on_refresh(employee, start_date, end_date):
+    """
+    Check attendance for the employee in the given period.
+    If attendance is found on Friday → +0.5 payment_days, -0.5 absent_days.
+    """
 
-#     print("[DEBUG] Friday Attendance Check START")
-#     print(f"[DEBUG] Employee: {employee}")
-#     print(f"[DEBUG] Period: {start_date} → {end_date}")
+    print("[DEBUG] Friday Attendance Check START")
+    print(f"[DEBUG] Employee: {employee}")
+    print(f"[DEBUG] Period: {start_date} → {end_date}")
 
-#     # Fetch attendance
-#     attendances = frappe.get_all(
-#         "Attendance",
-#         filters={
-#             "employee": employee,
-#             "attendance_date": ["between", [start_date, end_date]],
-#             "status": "Present"
-#         },
-#         fields=["attendance_date"]
-#     )
+    # Fetch attendance
+    attendances = frappe.get_all(
+        "Attendance",
+        filters={
+            "employee": employee,
+            "attendance_date": ["between", [start_date, end_date]],
+            "status": "Present"
+        },
+        fields=["attendance_date"]
+    )
 
-#     print(f"[DEBUG] Attendance records found: {len(attendances)}")
+    print(f"[DEBUG] Attendance records found: {len(attendances)}")
 
-#     added_days = 0
+    added_days = 0
 
-#     for att in attendances:
-#         weekday = getdate(att.attendance_date).weekday()  # Monday=0 ... Sunday=6
+    for att in attendances:
+        weekday = getdate(att.attendance_date).weekday()  # Monday=0 ... Sunday=6
 
-#         if weekday == 4:  # 4 = Friday
-#             added_days += 0.5
-#             print(f"[DEBUG] Friday attendance: {att.attendance_date}")
+        if weekday == 4:  # 4 = Friday
+            added_days += 0.5
+            print(f"[DEBUG] Friday attendance: {att.attendance_date}")
 
-#     print(f"[DEBUG] Total Friday days to add: {added_days}")
+    print(f"[DEBUG] Total Friday days to add: {added_days}")
 
-#     return {"added_days": added_days}
+    return {"added_days": added_days}
