@@ -3,7 +3,7 @@ frappe.ui.form.on("Payroll Entry", {
     // ===============================
     // RUN BEFORE SAVE (DRAFT)
     // ===============================
-    before_save(frm)  {
+    validate(frm)  {
         if (frm.doc.docstatus !== 0) return;
 
         // Half-day validation
@@ -41,7 +41,8 @@ frappe.ui.form.on("Payroll Entry", {
     // ===============================
     // RUN ON SUBMIT ONLY
     // ===============================
-    on_submit(frm) {
+    refresh(frm) {
+        if (frm.doc.docstatus == 0) return;
         frappe.call({
             method: "employee.api.LateMin",
             args: { name: frm.doc.name },

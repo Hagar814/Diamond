@@ -8,25 +8,18 @@ from datetime import datetime, time
 @frappe.whitelist()
 def validate_payroll_half_day(name):
     frappe.msgprint(f"🔍 validate_payroll_half_day STARTED for: {name}")
-    print(f"[DEBUG] validate_payroll_half_day STARTED for: {name}")
-
     payroll = frappe.get_doc("Payroll Entry", name)
+
     start = getdate(payroll.start_date)
     end = getdate(payroll.end_date)
-
     msg = []
 
     for row in payroll.employees:
         emp_id = row.employee
-        frappe.msgprint(f"➡ Checking employee: {emp_id}")
-        print(f"[DEBUG] Checking employee: {emp_id}")
+        msg.append(f"Checking employee: {emp_id}")
 
         current = start
-
         while current <= end:
-            frappe.msgprint(f"📌 Checking date: {current}")
-            print(f"[DEBUG] Checking date: {current}")
-
             day_start = get_datetime(str(current) + " 00:00:00")
             day_end = get_datetime(str(current) + " 23:59:59")
 
@@ -40,13 +33,10 @@ def validate_payroll_half_day(name):
                 fields=["name"]
             )
 
-            in_count = len(checkins)
-            print(f"[DEBUG] IN count for {emp_id} on {current}: {in_count}")
+            if len(checkins) == 1:
+                msg.append(f"Half-day candidate found for {emp_id} on {current}")
 
-            if in_count == 1:
-                print(f"[DEBUG] Half-Day candidate found for {emp_id} on {current}")
-
-                attendance = frappe.get_all(
+                attendance_list = frappe.get_all(
                     "Attendance",
                     filters={
                         "employee": emp_id,
@@ -56,24 +46,24 @@ def validate_payroll_half_day(name):
                     fields=["name"]
                 )
 
-                if attendance:
-                    att_doc = frappe.get_doc("Attendance", attendance[0].name)
-                    print(f"[DEBUG] Updating Attendance {attendance[0].name} → Half Day")
-
+                if attendance_list:
+                    att_doc = frappe.get_doc("Attendance", attendance_list[0].name)
                     att_doc.flags.ignore_validate_update_after_submit = True
                     att_doc.flags.ignore_permissions = True
 
                     att_doc.status = "Half Day"
-                    att_doc.half_day_status = "Absent"
-                    att_doc.save()
+                    # Make sure the field exists in DocType
+                    if hasattr(att_doc, "half_day_status"):
+                        att_doc.half_day_status = "Absent"
 
-                    frappe.msgprint(
-                        f"✔ Updated Attendance for {emp_id} on {current} → Half Day"
-                    )
+                    att_doc.save()
+                    msg.append(f"Updated Attendance for {emp_id} on {current} → Half Day")
 
             current = add_days(current, 1)
 
+    frappe.db.commit()  # ensure changes are committed
     return "\n".join(msg)
+
 
 
 # =====================================================================
