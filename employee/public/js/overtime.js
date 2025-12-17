@@ -1,8 +1,4 @@
 frappe.ui.form.on('Overtime', {
-    // Triggered whenever the form is validated (on save)
-    validate: function(frm) {
-        calculate_total_amount(frm);
-    },
 
     // Triggered whenever total_working_hours field is changed
     total_working_hours: function(frm) {

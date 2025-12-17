@@ -64,6 +64,7 @@ def validate_payroll_half_day(name):
                     att_doc.flags.ignore_permissions = True
 
                     att_doc.status = "Half Day"
+                    att_doc.half_day_status = "Absent"
                     att_doc.save()
 
                     frappe.msgprint(
@@ -75,10 +76,6 @@ def validate_payroll_half_day(name):
     return "\n".join(msg)
 
 
-
-
-
-
 # =====================================================================
 # UTILITY – MINUTES BETWEEN TWO TIMES
 # =====================================================================
@@ -87,10 +84,6 @@ def minutes_between(t1, t2):
     print(f"[DEBUG] minutes_between → {diff} minutes")
     return diff
 
-
-# =====================================================================
-# GET EMPLOYEE LATE MINUTES WITH FINAL RULES
-# =====================================================================
 
 # =====================================================================
 # GET EMPLOYEE LATE MINUTES WITH SHIFT RULES (FRIDAY EXCLUDED)
@@ -209,8 +202,6 @@ def get_employee_late_minutes(employee, start_date, end_date):
     return total_late
 
 
-
-
 # =====================================================================
 # SALARY DEDUCTION CALCULATION
 # =====================================================================
@@ -289,6 +280,58 @@ def calculate_overtime_for_salary_slip(salary_slip, employee, start_date, end_da
     return {
         "overtime_amount": overtime
     }
+
+# =====================================================================
+# UPDATE OVERTIME IN SALARY STRUCTURE ASSIGNMENT (ON PAYROLL SUBMIT)
+# =====================================================================
+@frappe.whitelist()
+def UpdateOvertime(name):
+
+    frappe.msgprint(f"⏱️ UpdateOvertime STARTED for payroll: {name}")
+    print(f"[DEBUG] UpdateOvertime STARTED for payroll: {name}")
+
+    payroll = frappe.get_doc("Payroll Entry", name)
+    start_date = payroll.start_date
+    end_date = payroll.end_date
+
+    updated = []
+
+    for row in payroll.employees:
+        employee = row.employee
+
+        # Calculate overtime amount
+        overtime_amount = get_employee_overtime(
+            employee, start_date, end_date
+        )
+
+        print(f"[DEBUG] {employee} overtime amount: {overtime_amount}")
+
+        # Fetch Salary Structure Assignment
+        ssa = frappe.get_all(
+            "Salary Structure Assignment",
+            filters={"employee": employee},
+            fields=["name"],
+            limit=1
+        )
+
+        if ssa:
+            frappe.db.set_value(
+                "Salary Structure Assignment",
+                ssa[0].name,
+                "custom_overtime",
+                overtime_amount
+            )
+
+            frappe.msgprint(
+                f"✔ {employee} → Overtime Updated: {overtime_amount:.2f}"
+            )
+
+            updated.append(f"{employee}: {overtime_amount:.2f}")
+
+    frappe.db.commit()
+
+    return "Overtime Updated:\n" + "\n".join(updated)
+
 
 @frappe.whitelist()
 def get_employee_overtime(employee, start_date, end_date):
