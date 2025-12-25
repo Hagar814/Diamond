@@ -1,5 +1,7 @@
 import frappe
 import requests
+from frappe.utils import getdate, nowdate
+from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
 
 def sync_biotime_checkins():
     # settings = frappe.get_single("ZkTeco BioTime Settings")
@@ -70,3 +72,98 @@ def sync_biotime_checkins():
             frappe.db.rollback()
 
     frappe.db.commit()
+
+
+def leave_cf_carry_forward():
+    today = getdate(nowdate())
+
+    frappe.log_error(
+        title="Annual Leave CF Job Started",
+        message=f"Carry Forward job started on {today}"
+    )
+
+    # TEMP: change to 31 later
+    if not (today.month == 12 and today.day == 23):
+        return
+
+    try:
+        employees = frappe.get_all(
+            "Employee",
+            filters={"status": "Active"},
+            pluck="name"
+        )
+
+        for emp in employees:
+            try:
+                from_date = today.replace(year=today.year + 1, month=1, day=1)
+                to_date = today.replace(year=today.year + 1, month=12, day=31)
+
+                # 🔴 FIRST: Check if CF allocation exists
+                existing = frappe.get_all(
+                    "Leave Allocation",
+                    filters={
+                        "employee": emp,
+                        "leave_type": "Annual Carry Forward",
+                        "docstatus": ("!=", 2),
+                        "from_date": ("<=", to_date),
+                        "to_date": (">=", from_date)
+                    },
+                    pluck="name"
+                )
+
+                if not existing:
+                    frappe.log_error(
+                        title=f"Annual Leave CF Skipped (No CF Allocation - {emp})",
+                        message=f"{emp} has no Annual Carry Forward allocation"
+                    )
+                    continue
+
+                # ✅ CF exists → now calculate balance
+                balance = (
+                    get_leave_balance_on(
+                        employee=emp,
+                        leave_type="Annual leave (less than 5 years)",
+                        date=today
+                    ) or 0
+                ) + (
+                    get_leave_balance_on(
+                        employee=emp,
+                        leave_type="Annual Leave (more than 5 years)",
+                        date=today
+                    ) or 0
+                )
+
+                if balance <= 0:
+                    frappe.log_error(
+                        title=f"Annual Leave CF Skipped (No Balance - {emp})",
+                        message=f"{emp} has no remaining Annual Leave balance"
+                    )
+                    continue
+
+                # 🔁 Override existing CF allocation
+                doc = frappe.get_doc("Leave Allocation", existing[0])
+                previous_total = doc.total_leaves_allocated or 0
+
+                doc.new_leaves_allocated = balance
+                doc.total_leaves_allocated = balance
+                doc.save()
+
+                frappe.log_error(
+                    title="Annual Leave CF Updated",
+                    message=(
+                        f"{emp} → CF overridden "
+                        f"(old: {previous_total}, new: {balance})"
+                    )
+                )
+
+            except Exception:
+                frappe.log_error(
+                    title=f"Annual Leave CF Error (Employee {emp})",
+                    message=frappe.get_traceback()
+                )
+
+    except Exception:
+        frappe.log_error(
+            title="Annual Leave CF Job Failed",
+            message=frappe.get_traceback()
+        )

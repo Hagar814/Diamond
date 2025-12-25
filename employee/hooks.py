@@ -16,8 +16,11 @@ doctype_js = {
 }
 scheduler_events = {
     # 'all' runs every 4 minutes by default
-    "all": [
-        "employee.sync.sync_biotime_checkins"
+    # "all": [
+    #     "employee.sync.sync_biotime_checkins"
+    # ],
+        "all": [
+        "employee.sync.leave_cf_carry_forward"
     ]
     # Or, to run hourly:
     # "hourly": [
