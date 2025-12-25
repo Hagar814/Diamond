@@ -83,7 +83,7 @@ def leave_cf_carry_forward():
     )
 
     # TEMP: change to 31 later
-    if not (today.month == 12 and today.day == 23):
+    if not (today.month == 12 and today.day == 31):
         return
 
     try:
@@ -100,16 +100,16 @@ def leave_cf_carry_forward():
 
                 # 🔴 FIRST: Check if CF allocation exists
                 existing = frappe.get_all(
-                    "Leave Allocation",
-                    filters={
-                        "employee": emp,
-                        "leave_type": "Annual Carry Forward",
-                        "docstatus": ("!=", 2),
-                        "from_date": ("<=", to_date),
-                        "to_date": (">=", from_date)
-                    },
-                    pluck="name"
-                )
+                "Leave Allocation",
+                filters={
+                    "employee": emp,
+                    "leave_type": "Annual Carry Forward",
+                    "docstatus": ("!=", 2),
+                },
+                pluck="name",
+                order_by="from_date desc",
+                limit=1
+            )
 
                 if not existing:
                     frappe.log_error(

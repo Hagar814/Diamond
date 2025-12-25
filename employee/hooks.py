@@ -19,7 +19,7 @@ scheduler_events = {
     # "all": [
     #     "employee.sync.sync_biotime_checkins"
     # ],
-        "all": [
+        "daily": [
         "employee.sync.leave_cf_carry_forward"
     ]
     # Or, to run hourly:
