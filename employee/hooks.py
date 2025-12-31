@@ -13,15 +13,25 @@ doctype_js = {
     "Overtime": "public/js/overtime.js",
     "Salary Slip": "public/js/salarySlip.js",
     "ZkTeco BioTime Settings'": "public/js/biotime.js"
+    
 }
+doc_events = {
+    "Employee Checkin": {
+        "after_insert": "employee.api.check_and_increment_late_counter"
+    }
+}
+
 scheduler_events = {
     # 'all' runs every 4 minutes by default
     # "all": [
     #     "employee.sync.sync_biotime_checkins"
     # ],
-        "daily": [
-        "employee.sync.leave_cf_carry_forward"
+    "daily": [
+        "employee.sync.leave_cf_carry_forward",
+        "employee.api.send_late_entry_notifications",
+        "employee.api.reset_late_entry_counter"
     ]
+
     # Or, to run hourly:
     # "hourly": [
     #     "my_app.my_module.sync.sync_biotime_checkins"

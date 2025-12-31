@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import getdate, add_days, now_datetime, get_datetime, flt
+from frappe.utils import getdate, add_days, now_datetime, get_datetime, flt, now
 from datetime import datetime, time
 
 # =====================================================================
@@ -406,3 +406,111 @@ def adjust_friday_and_showroom_attendance(employee, start_date, end_date):
     print(f"[DEBUG] Total added days: {added_days}")
 
     return {"added_days": added_days}
+
+
+def check_and_increment_late_counter(doc, method):
+    # Only IN check-ins
+    if doc.log_type != "IN":
+        return
+
+    # Convert doc.time to datetime if it's a string
+    if isinstance(doc.time, str):
+        checkin_dt = datetime.fromisoformat(doc.time)
+    else:
+        checkin_dt = doc.time
+
+    # Skip Fridays
+    if checkin_dt.weekday() == 4:
+        return
+
+    in_time = checkin_dt.time()
+    shift = getattr(doc, "shift", None)
+    is_late = False
+
+    # Late thresholds per shift
+    late_thresholds = {
+        "Showroom (Morning Period)": time(9, 15),
+        "Showroom (Evening period Saudian)": time(16, 15),
+        "Factory Shift": time(8, 15),
+    }
+
+    # Determine threshold
+    threshold = late_thresholds.get(shift)
+    if not threshold:
+        # Fallback based on time ranges
+        if time(9, 0) <= in_time < time(12, 0):
+            threshold = time(9, 15)
+        elif time(16, 0) <= in_time < time(21, 0):
+            threshold = time(16, 15)
+        elif time(8, 0) <= in_time <= time(17, 0):
+            threshold = time(8, 15)
+
+    if threshold and in_time > threshold:
+        is_late = True
+
+    if is_late:
+        # Increment late counter
+        current_count = frappe.db.get_value("Employee", doc.employee, "custom_late_entry_counter") or 0
+        frappe.db.set_value("Employee", doc.employee, "custom_late_entry_counter", current_count + 1)
+
+        msg = f"Late entry detected for {doc.employee} at {in_time}, shift: {shift}, counter: {current_count + 1}"
+        frappe.logger().info(msg)
+        frappe.log_error(message=msg, title="Late Entry Debug")
+
+        # Send email notification
+        try:
+            frappe.sendmail(
+                recipients=["hagarmahmoud05@gmail.com"],
+                subject=f"Late Check-in Alert: {doc.employee}",
+                message=f"""
+                Employee: {doc.employee} ({doc.employee_name})<br>
+                Check-in Time: {checkin_dt}<br>
+                Shift: {shift}<br>
+                Late Count: {current_count + 1}<br>
+                """,
+                reference_doctype="Employee Checkin",
+                reference_name=doc.name
+            )
+        except Exception as e:
+            frappe.log_error(frappe.get_traceback(), f"Failed to send late notification for {doc.employee}")
+
+def send_late_entry_notifications():
+    frappe.log_error(
+        title="Late Entry Summary",
+        message=f"Carry Forward job started on {today}"
+    )
+
+    if datetime.today().day != 25:
+        return  # exit if not the 25th
+    # Get all employees with custom_late_entry_counter > 0
+    employees = frappe.get_all(
+        "Employee",
+        filters={"custom_late_entry_counter": [">", 0]},
+        fields=["name", "employee_name", "custom_late_entry_counter"]
+    )
+
+    for emp in employees:
+        message = f"Employee {emp.employee_name} has {emp.custom_late_entry_counter} late entries."
+        
+        # Send Notification
+        frappe.sendmail(
+            recipients=["hagarmahmoud05@gmail.com.com"],  # Replace with HR or notification recipients
+            subject="Employee Late Entry Alert",
+            message=message
+        )
+        frappe.db.commit()  # commit if required
+
+
+def reset_late_entry_counter():
+    # Only run if today is the 30th
+    if datetime.today().day != 30:
+        return
+
+    # Reset the counter for all employees
+    frappe.db.sql("""
+        UPDATE `tabEmployee`
+        SET custom_late_entry_counter = 0
+        WHERE custom_late_entry_counter > 0
+    """)
+    frappe.db.commit()
+
