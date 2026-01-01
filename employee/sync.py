@@ -103,7 +103,7 @@ def leave_cf_carry_forward():
                 "Leave Allocation",
                 filters={
                     "employee": emp,
-                    "leave_type": "Annual Carry Forward",
+                    "leave_type": "Accrual",
                     "docstatus": ("!=", 2),
                 },
                 pluck="name",
@@ -114,7 +114,7 @@ def leave_cf_carry_forward():
                 if not existing:
                     frappe.log_error(
                         title=f"Annual Leave CF Skipped (No CF Allocation - {emp})",
-                        message=f"{emp} has no Annual Carry Forward allocation"
+                        message=f"{emp} has no Accrual allocation"
                     )
                     continue
 

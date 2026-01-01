@@ -24,7 +24,7 @@ doc_events = {
 scheduler_events = {
     # 'all' runs every 4 minutes by default
     # "all": [
-    #     "employee.sync.sync_biotime_checkins"
+    #     "employee.api.send_late_entry_notifications"
     # ],
     "daily": [
         "employee.sync.leave_cf_carry_forward",

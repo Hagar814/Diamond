@@ -474,34 +474,63 @@ def check_and_increment_late_counter(doc, method):
         except Exception as e:
             frappe.log_error(frappe.get_traceback(), f"Failed to send late notification for {doc.employee}")
 
+
 def send_late_entry_notifications():
+    today = datetime.today().strftime("%Y-%m-%d")
+
     frappe.log_error(
-        title="Late Entry Summary",
-        message=f"Carry Forward job started on {today}"
+        title="Late Entry TEST",
+        message=f"Job started on {today}"
     )
 
-    if datetime.today().day != 25:
-        return  # exit if not the 25th
-    # Get all employees with custom_late_entry_counter > 0
+    # TEMP: allow testing on Jan 1 (change to 25 later)
+    if datetime.today().day != 30:
+        return
+
     employees = frappe.get_all(
         "Employee",
         filters={"custom_late_entry_counter": [">", 0]},
-        fields=["name", "employee_name", "custom_late_entry_counter"]
+        fields=["employee_name", "custom_late_entry_counter"]
     )
 
-    for emp in employees:
-        message = f"Employee {emp.employee_name} has {emp.custom_late_entry_counter} late entries."
-        
-        # Send Notification
-        frappe.sendmail(
-            recipients=["hagarmahmoud05@gmail.com.com"],  # Replace with HR or notification recipients
-            subject="Employee Late Entry Alert",
-            message=message
+    if not employees:
+        frappe.log_error(
+            title="Late Entry TEST",
+            message="No employees with late entries"
         )
-        frappe.db.commit()  # commit if required
+        return
+
+    # 🧾 Build one email body
+    lines = [
+        "<p>The following employees have late entries:</p>",
+        "<ul>"
+    ]
+
+    for emp in employees:
+        lines.append(
+            f"<li><b>{emp.employee_name}</b>: {emp.custom_late_entry_counter} late entries</li>"
+        )
+
+    lines.append("</ul>")
+
+    message = "\n".join(lines)
+
+    # 📧 Send ONE email
+    frappe.sendmail(
+        recipients=["hagarmahmoud05@gmail.com"],
+        subject="Employee Late Entry Summary",
+        message=message
+    )
+
+    frappe.log_error(
+        title="Late Entry TEST",
+        message=f"Summary email sent for {len(employees)} employees"
+    )
+
 
 
 def reset_late_entry_counter():
+    today = datetime.today().strftime("%Y-%m-%d")
     # Only run if today is the 30th
     if datetime.today().day != 30:
         return
