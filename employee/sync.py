@@ -1,77 +1,112 @@
 import frappe
 import requests
-from frappe.utils import getdate, nowdate
+from datetime import datetime, time
+from frappe.utils import getdate, nowdate, get_datetime, convert_utc_to_system_timezone
 from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
+import math
 
 def sync_biotime_checkins():
-    # settings = frappe.get_single("ZkTeco BioTime Settings")
-    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiYzQ1MDJlZGUtZDJiOS0xMWYwLWI4ZDMtMGE1OGE5ZmVhYzAyIiwidXNlcm5hbWUiOiJNb2hhbWVkX0VsLURlZWJAYWxtYXNhLmNvbS5zYSIsImV4cCI6MTc2NjA1MzQ2NiwiZW1haWwiOiJNb2hhbWVkX0VsLURlZWJAYWxtYXNhLmNvbS5zYSIsIm9yaWdfaWF0IjoxNzY1NDQ4NjY2fQ.ac-n7kYzVTQmL_G9BicHBZmSdOghb_Ha2WzUfMcvhuY"
+    frappe.log_error(
+        "BioTime sync started (last 200 pages)",
+        "BioTime Sync Debug"
+    )
 
-    url = "https://almasacompany.biotimecloud.com/iclock/api/transactions/"
+    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6IkFkbWluIiwiZXhwIjoxNzY4OTExMTMzLCJlbWFpbCI6IiIsIm9yaWdfaWF0IjoxNzY4MzA2MzMzfQ.c1wbq-1qa1eoLWaZ9fL11t4ZlorX6IsX8AyErdjMrrM"
     headers = {"Authorization": f"JWT {token}"}
 
-    
-    # if not settings.api_url or not settings.token:
-    #     frappe.log_error("BioTime Settings are not configured", "BioTime Sync")
-    #     return
+    base_url = "http://biotime.almasa.com.sa/iclock/api/transactions/"
+    total_records = 0
+    page_size = 10  # adjust based on your API's page size
+    max_pages = 10
 
-    # url = f"{settings.api_url}/iclock/api/transactions/"
-    
-    # headers = {
-    #     "Authorization": f"JWT {token}"
-    # }
-
-    response = requests.get(url, headers=headers)
+    # Step 1: Get total count
+    response = requests.get(base_url, headers=headers, timeout=30)
     response.raise_for_status()
-    checkins = response.json().get("data", [])
+    total_count = response.json().get("count", 0)
+    total_pages = math.ceil(total_count / page_size)
 
-    for entry in checkins:
-        emp_code = entry.get("emp_code")
-        punch_time = entry.get("punch_time")
+    # Step 2: Calculate starting page
+    start_page = max(total_pages - max_pages + 1, 1)
+    current_page = start_page
 
-        try:
-            employee_name = frappe.db.get_value(
-                "Employee",
-                {"attendance_device_id": emp_code},
-                "name"
-            )
+    # Step 3: Loop from start_page to total_pages
+    while current_page <= total_pages:
+        url = f"{base_url}?page={current_page}"
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
 
-            if not employee_name:
-                frappe.log_error(
-                    f"No Frappe Employee found for Attendance Device ID: {emp_code}",
-                    "BioTime Sync Failure"
-                )
+        data = response.json()
+        checkins = data.get("data", [])
+        total_records += len(checkins)
+
+        frappe.log_error(
+            f"BioTime sync page fetched. Records on this page: {len(checkins)}, Total so far: {total_records}, Page: {current_page}",
+            "BioTime Sync Debug"
+        )
+
+        for entry in checkins:
+            emp_code = entry.get("emp_code")
+            punch_time_str = entry.get("punch_time")
+
+            if not emp_code or not punch_time_str:
                 continue
 
-            exists = frappe.db.exists(
-                "Employee Checkin",
-                {"employee": employee_name, "time": punch_time}
-            )
+            try:
+                punch_time = frappe.utils.get_datetime(punch_time_str).replace(
+                    tzinfo=None,
+                    microsecond=0
+                )
 
-            if not exists:
+                # Find employee
+                employee_name = frappe.db.get_value(
+                    "Employee",
+                    {"attendance_device_id": emp_code},
+                    "name"
+                )
+
+                if not employee_name:
+                    frappe.log_error(
+                        f"No employee found for device ID {emp_code}",
+                        "BioTime Sync Missing Employee"
+                    )
+                    continue
+
+                # Prevent exact duplicates
+                if frappe.db.exists(
+                    "Employee Checkin",
+                    {"employee": employee_name, "time": punch_time}
+                ):
+                    continue
+
+                # Create checkin
                 doc = frappe.new_doc("Employee Checkin")
                 doc.employee = employee_name
                 doc.time = punch_time
                 doc.device_id = entry.get("terminal_sn")
-
-                if entry.get("punch_state") == "0":
-                    doc.log_type = "IN"
-                elif entry.get("punch_state") == "1":
-                    doc.log_type = "OUT"
-                else:
-                    doc.log_type = ""  # optional: default to blank if unknown
-
-
+                doc.log_type = "IN" if entry.get("punch_state") == "0" else "OUT"
+                doc.flags.ignore_validate = True
                 doc.insert(ignore_permissions=True)
 
-        except Exception as e:
-            frappe.log_error(
-                f"Critical Insert Error for Employee {emp_code}: {str(e)}",
-                "BioTime Sync Failure"
-            )
-            frappe.db.rollback()
+            except Exception as e:
+                frappe.log_error(
+                    f"""
+Employee Code : {emp_code}
+Punch Time    : {punch_time_str}
+Error         : {str(e)}
+                    """,
+                    "BioTime Sync Critical Error"
+                )
+                frappe.db.rollback()
 
+        frappe.db.commit()
+        current_page += 1
+
+    frappe.log_error(
+        f"BioTime sync completed successfully. Total records processed: {total_records}",
+        "BioTime Sync Debug"
+    )
     frappe.db.commit()
+
 
 
 def leave_cf_carry_forward():
@@ -167,3 +202,52 @@ def leave_cf_carry_forward():
             title="Annual Leave CF Job Failed",
             message=frappe.get_traceback()
         )
+
+def send_leads_notification_if_saturday():
+    # Python weekday(): Monday=0 ... Sunday=6
+    today = datetime.today()
+
+    if today.weekday() != 5:  # 5 = Saturday
+        return
+
+    leads = frappe.get_all(
+        "Lead",
+        filters={"status": "Lead"},
+        fields=["name", "lead_name"]
+    )
+
+    if not leads:
+        return
+
+    base_url = frappe.utils.get_url()
+
+    rows = ""
+    for lead in leads:
+        lead_url = f"{base_url}/app/lead/{lead.name}"
+        rows += f"""
+            <tr>
+                <td>{lead.lead_name or lead.name}</td>
+                <td><a href="{lead_url}">Open Lead</a></td>
+            </tr>
+        """
+
+    message = f"""
+        <p>Hello,</p>
+        <p>Here is the list of all Leads with status <b>Lead</b>:</p>
+
+        <table border="1" cellpadding="6" cellspacing="0">
+            <tr>
+                <th>Lead Name</th>
+                <th>Link</th>
+            </tr>
+            {rows}
+        </table>
+
+        <p>Total Leads: <b>{len(leads)}</b></p>
+    """
+
+    frappe.sendmail(
+        recipients=["hagarmahmoud05@gmail.com"],
+        subject="Saturday Leads Summary",
+        message=message
+    )

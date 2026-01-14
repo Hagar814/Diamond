@@ -543,3 +543,65 @@ def reset_late_entry_counter():
     """)
     frappe.db.commit()
 
+
+
+def send_late_entry_notifications_per_employee():
+    today = datetime.today().strftime("%Y-%m-%d")
+
+    frappe.log_error(
+        title="Late Entry INDIVIDUAL TEST",
+        message=f"Job started on {today}"
+    )
+
+    # TEMP: allow testing on day 30
+    if datetime.today().day != 30:
+        return
+
+    employees = frappe.get_all(
+        "Employee",
+        filters={"custom_late_entry_counter": [">", 0]},
+        fields=[
+            "employee_name",
+            "company_email",
+            "custom_late_entry_counter"
+        ]
+    )
+
+    if not employees:
+        frappe.log_error(
+            title="Late Entry INDIVIDUAL TEST",
+            message="No employees with late entries"
+        )
+        return
+
+    for emp in employees:
+        if not emp.company_email:
+            frappe.log_error(
+                title="Late Entry INDIVIDUAL TEST",
+                message=f"Missing company email for {emp.employee_name}"
+            )
+            continue
+
+        message = f"""
+        <p>Dear <b>{emp.employee_name}</b>,</p>
+
+        <p>This is to notify you that you have
+        <b>{emp.custom_late_entry_counter}</b> late entry record(s).</p>
+
+        <p>Please ensure compliance with company attendance policies.</p>
+
+        <p>Regards,<br>
+        HR Department</p>
+        """
+
+        frappe.sendmail(
+            recipients=[emp.company_email],
+            subject="Late Entry Notification",
+            message=message
+        )
+
+    frappe.log_error(
+        title="Late Entry INDIVIDUAL TEST",
+        message=f"Emails sent to {len(employees)} employees"
+    )
+
