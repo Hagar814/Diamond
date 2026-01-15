@@ -460,7 +460,7 @@ def check_and_increment_late_counter(doc, method):
         # Send email notification
         try:
             frappe.sendmail(
-                recipients=["hagarmahmoud05@gmail.com"],
+                recipients = ["mirna_hany@almasa.com.sa","mariam_ezzat@almasa.com.sa"],
                 subject=f"Late Check-in Alert: {doc.employee}",
                 message=f"""
                 Employee: {doc.employee} ({doc.employee_name})<br>
@@ -517,7 +517,7 @@ def send_late_entry_notifications():
 
     # 📧 Send ONE email
     frappe.sendmail(
-        recipients=["hagarmahmoud05@gmail.com"],
+        recipients = ["mirna_hany@almasa.com.sa","mariam_ezzat@almasa.com.sa"],
         subject="Employee Late Entry Summary",
         message=message
     )

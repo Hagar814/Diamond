@@ -5,6 +5,53 @@ from frappe.utils import getdate, nowdate, get_datetime, convert_utc_to_system_t
 from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
 import math
 
+# ------------------------------------------------------------
+# Shift resolution rules
+# ------------------------------------------------------------
+
+SHOWROOM_TERMINALS = {
+    "معرض الرياض - النرجس",
+    "معرض سيهات",
+    "معرض الرياض - الفيصلية",
+    "معرض الاحساء",
+    "معرض الدمام - القادسية",
+}
+
+FACTORY_TERMINALS = {
+    "المصنع الرئيسي"
+}
+
+CAIRO_OFFICE_TERMINALS = {
+    "مكتب القاهرة",
+}
+
+def resolve_shift(entry, punch_time):
+    terminal_alias = (entry.get("terminal_alias") or "").strip()
+    hour = punch_time.hour
+
+    # Cairo Office shift (always)
+    if terminal_alias in CAIRO_OFFICE_TERMINALS:
+        return "Cairo Office Shift"
+
+    # Factory shift (always)
+    if terminal_alias in FACTORY_TERMINALS:
+        return "Factory Shift"
+
+    # Showroom terminals
+    if terminal_alias in SHOWROOM_TERMINALS:
+        if hour < 15:
+            return "Showroom ( Morning Period )"
+        else:
+            return "Showroom (Evening period Non Saudian)"
+
+    # Fallback → use active shift assignment
+    return None
+
+
+# ------------------------------------------------------------
+# Main Sync Function
+# ------------------------------------------------------------
+
 def sync_biotime_checkins():
     frappe.log_error(
         "BioTime sync started (last 200 pages)",
@@ -16,7 +63,7 @@ def sync_biotime_checkins():
 
     base_url = "http://biotime.almasa.com.sa/iclock/api/transactions/"
     total_records = 0
-    page_size = 10  # adjust based on your API's page size
+    page_size = 10
     max_pages = 10
 
     # Step 1: Get total count
@@ -40,7 +87,8 @@ def sync_biotime_checkins():
         total_records += len(checkins)
 
         frappe.log_error(
-            f"BioTime sync page fetched. Records on this page: {len(checkins)}, Total so far: {total_records}, Page: {current_page}",
+            f"BioTime sync page fetched. Records on this page: {len(checkins)}, "
+            f"Total so far: {total_records}, Page: {current_page}",
             "BioTime Sync Debug"
         )
 
@@ -78,12 +126,31 @@ def sync_biotime_checkins():
                 ):
                     continue
 
-                # Create checkin
+                # ------------------------------------------------
+                # Resolve shift (BioTime rules → fallback to assignment)
+                # ------------------------------------------------
+                resolved_shift = resolve_shift(entry, punch_time)
+
+
+                # DEBUG shift resolution
+                frappe.log_error(
+                    f"EMP:{employee_name} | TERMINAL:{entry.get('terminal_alias')} | "
+                    f"TIME:{punch_time} | SHIFT:{resolved_shift}",
+                    "BioTime Shift Debug"
+                )
+
+                # ------------------------------------------------
+                # Create Employee Checkin
+                # ------------------------------------------------
                 doc = frappe.new_doc("Employee Checkin")
                 doc.employee = employee_name
                 doc.time = punch_time
                 doc.device_id = entry.get("terminal_sn")
                 doc.log_type = "IN" if entry.get("punch_state") == "0" else "OUT"
+
+                if resolved_shift:
+                    doc.shift = resolved_shift
+
                 doc.flags.ignore_validate = True
                 doc.insert(ignore_permissions=True)
 
@@ -106,6 +173,7 @@ Error         : {str(e)}
         "BioTime Sync Debug"
     )
     frappe.db.commit()
+
 
 
 
@@ -233,7 +301,7 @@ def send_leads_notification_if_saturday():
 
     message = f"""
         <p>Hello,</p>
-        <p>Here is the list of all Leads with status <b>Lead</b>:</p>
+        <p>Here is the list of all Leads with status <b>Open</b>:</p>
 
         <table border="1" cellpadding="6" cellspacing="0">
             <tr>
@@ -247,7 +315,7 @@ def send_leads_notification_if_saturday():
     """
 
     frappe.sendmail(
-        recipients=["hagarmahmoud05@gmail.com"],
+        recipients = ["mirna_hany@almasa.com.sa","mariam_ezzat@almasa.com.sa"],
         subject="Saturday Leads Summary",
         message=message
     )
