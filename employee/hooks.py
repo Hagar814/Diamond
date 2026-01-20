@@ -14,11 +14,11 @@ doctype_js = {
     "Salary Slip": "public/js/salarySlip.js"
     
 }
-doc_events = {
-    "Employee Checkin": {
-        "after_insert": "employee.api.check_and_increment_late_counter"
-    }
-}
+# doc_events = {
+#     "Employee Checkin": {
+#         "after_insert": "employee.api.check_and_increment_late_counter"
+#     }
+# }
 
 scheduler_events = {
     # 'all' runs every 4 minutes by default
@@ -27,9 +27,9 @@ scheduler_events = {
     ],
     "daily": [
         "employee.sync.leave_cf_carry_forward",
-        "employee.api.send_late_entry_notifications",
-        "employee.api.reset_late_entry_counter",
-        "employee.api.send_late_entry_notifications_per_employee"
+        # "employee.api.send_late_entry_notifications",
+        "employee.api.reset_late_entry_counter"
+        # "employee.api.send_late_entry_notifications_per_employee"
     ]
 
     # Or, to run hourly:
