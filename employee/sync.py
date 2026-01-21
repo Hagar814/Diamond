@@ -58,13 +58,13 @@ def sync_biotime_checkins():
         "BioTime Sync Debug"
     )
 
-    token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6IkFkbWluIiwiZXhwIjoxNzY4OTExMTMzLCJlbWFpbCI6IiIsIm9yaWdfaWF0IjoxNzY4MzA2MzMzfQ.c1wbq-1qa1eoLWaZ9fL11t4ZlorX6IsX8AyErdjMrrM"
+    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY5MDcwODQwLCJpYXQiOjE3Njg5ODQ0NDAsImp0aSI6IjI2NTBiMDE3ODQzZTQ2NWM5YjdkMmIwMmYxYzkzYjA1IiwidXNlcl9pZCI6MX0.vGR5YbJ40hBtOxI6E6MZOrRjTjzNzr0K6x5p6Jhkx_Q"
     headers = {"Authorization": f"JWT {token}"}
 
     base_url = "http://biotime.almasa.com.sa/iclock/api/transactions/"
     total_records = 0
-    page_size = 10
-    max_pages = 10
+    page_size = 20
+    max_pages = 20
 
     # Step 1: Get total count
     response = requests.get(base_url, headers=headers, timeout=30)
