@@ -3,21 +3,21 @@ frappe.ui.form.on("Payroll Entry", {
     // ===============================
     // RUN BEFORE SAVE (DRAFT)
     // ===============================
-    validate(frm)  {
-        if (frm.doc.docstatus !== 0) return;
+    // validate(frm)  {
+    //     if (frm.doc.docstatus !== 0) return;
 
-        // Half-day validation
-        frappe.call({
-            method: "employee.api.validate_payroll_half_day",
-            args: { name: frm.doc.name },
-            callback: function (r) {
-                console.log("✅ validate_payroll_half_day response:", r.message);
-            },
-            error: function (err) {
-                console.error("❌ validate_payroll_half_day error:", err);
-            }
-        });
-    },
+    //     // Half-day validation
+    //     frappe.call({
+    //         method: "employee.api.validate_payroll_half_day",
+    //         args: { name: frm.doc.name },
+    //         callback: function (r) {
+    //             console.log("✅ validate_payroll_half_day response:", r.message);
+    //         },
+    //         error: function (err) {
+    //             console.error("❌ validate_payroll_half_day error:", err);
+    //         }
+    //     });
+    // },
 
     // ===============================
     // RUN AFTER SAVE (DRAFT)

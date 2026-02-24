@@ -11,6 +11,7 @@ app_license = "mit"
 doctype_js = {
     "Payroll Entry": "public/js/salary.js",
     "Overtime": "public/js/overtime.js",
+    "Zkteco Setting": "public/js/biotime.js",
     "Salary Slip": "public/js/salarySlip.js"
     
 }
@@ -24,9 +25,11 @@ scheduler_events = {
     # 'all' runs every 4 minutes by default
     "all": [
         "employee.sync.sync_biotime_checkins"
+        
     ],
     "daily": [
         "employee.sync.leave_cf_carry_forward",
+        "employee.sync.sync_zkteco_token",
         # "employee.api.send_late_entry_notifications",
         "employee.api.reset_late_entry_counter"
         # "employee.api.send_late_entry_notifications_per_employee"

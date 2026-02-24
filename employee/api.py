@@ -5,64 +5,64 @@ from datetime import datetime, time
 # =====================================================================
 # VALIDATE HALF DAY
 # =====================================================================
-@frappe.whitelist()
-def validate_payroll_half_day(name):
-    frappe.msgprint(f"🔍 validate_payroll_half_day STARTED for: {name}")
-    payroll = frappe.get_doc("Payroll Entry", name)
+# @frappe.whitelist()
+# def validate_payroll_half_day(name):
+#     frappe.msgprint(f"🔍 validate_payroll_half_day STARTED for: {name}")
+#     payroll = frappe.get_doc("Payroll Entry", name)
 
-    start = getdate(payroll.start_date)
-    end = getdate(payroll.end_date)
-    msg = []
+#     start = getdate(payroll.start_date)
+#     end = getdate(payroll.end_date)
+#     msg = []
 
-    for row in payroll.employees:
-        emp_id = row.employee
-        msg.append(f"Checking employee: {emp_id}")
+#     for row in payroll.employees:
+#         emp_id = row.employee
+#         msg.append(f"Checking employee: {emp_id}")
 
-        current = start
-        while current <= end:
-            day_start = get_datetime(str(current) + " 00:00:00")
-            day_end = get_datetime(str(current) + " 23:59:59")
+#         current = start
+#         while current <= end:
+#             day_start = get_datetime(str(current) + " 00:00:00")
+#             day_end = get_datetime(str(current) + " 23:59:59")
 
-            checkins = frappe.get_all(
-                "Employee Checkin",
-                filters={
-                    "employee": emp_id,
-                    "log_type": "IN",
-                    "time": ["between", [day_start, day_end]]
-                },
-                fields=["name"]
-            )
+#             checkins = frappe.get_all(
+#                 "Employee Checkin",
+#                 filters={
+#                     "employee": emp_id,
+#                     "log_type": "IN",
+#                     "time": ["between", [day_start, day_end]]
+#                 },
+#                 fields=["name"]
+#             )
 
-            if len(checkins) == 1:
-                msg.append(f"Half-day candidate found for {emp_id} on {current}")
+#             if len(checkins) == 1:
+#                 msg.append(f"Half-day candidate found for {emp_id} on {current}")
 
-                attendance_list = frappe.get_all(
-                    "Attendance",
-                    filters={
-                        "employee": emp_id,
-                        "attendance_date": current,
-                        "docstatus": 1
-                    },
-                    fields=["name"]
-                )
+#                 attendance_list = frappe.get_all(
+#                     "Attendance",
+#                     filters={
+#                         "employee": emp_id,
+#                         "attendance_date": current,
+#                         "docstatus": 1
+#                     },
+#                     fields=["name"]
+#                 )
 
-                if attendance_list:
-                    att_doc = frappe.get_doc("Attendance", attendance_list[0].name)
-                    att_doc.flags.ignore_validate_update_after_submit = True
-                    att_doc.flags.ignore_permissions = True
+#                 if attendance_list:
+#                     att_doc = frappe.get_doc("Attendance", attendance_list[0].name)
+#                     att_doc.flags.ignore_validate_update_after_submit = True
+#                     att_doc.flags.ignore_permissions = True
 
-                    att_doc.status = "Half Day"
-                    # Make sure the field exists in DocType
-                    if hasattr(att_doc, "half_day_status"):
-                        att_doc.half_day_status = "Absent"
+#                     att_doc.status = "Half Day"
+#                     # Make sure the field exists in DocType
+#                     if hasattr(att_doc, "half_day_status"):
+#                         att_doc.half_day_status = "Absent"
 
-                    att_doc.save()
-                    msg.append(f"Updated Attendance for {emp_id} on {current} → Half Day")
+#                     att_doc.save()
+#                     msg.append(f"Updated Attendance for {emp_id} on {current} → Half Day")
 
-            current = add_days(current, 1)
+#             current = add_days(current, 1)
 
-    frappe.db.commit()  # ensure changes are committed
-    return "\n".join(msg)
+#     frappe.db.commit()  # ensure changes are committed
+#     return "\n".join(msg)
 
 
 
