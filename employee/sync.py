@@ -8,75 +8,82 @@ import math
 # ------------------------------------------------------------
 # Shift resolution rules
 # ------------------------------------------------------------
+@frappe.whitelist()
+def sync_zkteco_token():
+    try:
+        url = "http://biotime.almasa.com.sa/jwt-api-token-auth/"
+        payload = {
+            "username": "Admin",
+            "password": "Almasa2026"
+        }
 
-SHOWROOM_TERMINALS = {
-    "معرض الرياض - النرجس",
-    "معرض سيهات -الدمام",
-    "معرض الرياض - الفيصلية",
-    "معرض الاحساء",
-    "معرض الدمام - القادسية",
-}
+        response = requests.post(url, json=payload, timeout=20)
+        response.raise_for_status()
 
-FACTORY_TERMINALS = {
-    "المصنع الرئيسي"
-}
+        data = response.json()
+        token = data.get("token")
 
-CAIRO_OFFICE_TERMINALS = {
-    "مكتب القاهرة",
-}
+        if not token:
+            frappe.throw("Token not found in response")
 
-def resolve_shift(entry, punch_time):
-    terminal_alias = (entry.get("terminal_alias") or "").strip()
-    hour = punch_time.hour
+        # Save to Single DocType
+        doc = frappe.get_single("Zkteco Setting")
+        doc.token = token
+        doc.last_sync = now_datetime()
+        doc.save(ignore_permissions=True)
 
-    # Cairo Office shift (always)
-    if terminal_alias in CAIRO_OFFICE_TERMINALS:
-        return "Cairo Office Shift"
+        frappe.db.commit()
 
-    # Factory shift (always)
-    if terminal_alias in FACTORY_TERMINALS:
-        return "Factory Shift"
+        return "Token synced successfully"
 
-    # Showroom terminals
-    if terminal_alias in SHOWROOM_TERMINALS:
-        if hour < 15:
-            return "Showroom ( Morning Period )"
-        else:
-            return "Showroom (Evening period Non Saudian)"
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "Zkteco Token Sync Failed")
+        raise
 
-    # Fallback → use active shift assignment
-    return None
 
 
 # ------------------------------------------------------------
 # Main Sync Function
 # ------------------------------------------------------------
-
 def sync_biotime_checkins():
     frappe.log_error(
-        "BioTime sync started (last 200 pages)",
+        "BioTime sync started",
         "BioTime Sync Debug"
     )
 
-    token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY5MDcwODQwLCJpYXQiOjE3Njg5ODQ0NDAsImp0aSI6IjI2NTBiMDE3ODQzZTQ2NWM5YjdkMmIwMmYxYzkzYjA1IiwidXNlcl9pZCI6MX0.vGR5YbJ40hBtOxI6E6MZOrRjTjzNzr0K6x5p6Jhkx_Q"
+    # ✅ Get token from Single DocType
+    settings = frappe.get_single("Zkteco Setting")
+
+    # If field type is Password, use get_password()
+    token = settings.get_password("token")
+
+    if not token:
+        frappe.log_error("Token is empty", "BioTime Sync Error")
+        return    
     headers = {"Authorization": f"JWT {token}"}
 
     base_url = "http://biotime.almasa.com.sa/iclock/api/transactions/"
     total_records = 0
-    page_size = 20
-    max_pages = 20
+    page_size = 10
+    max_pages = 40
 
+    # ------------------------------------------------
     # Step 1: Get total count
+    # ------------------------------------------------
     response = requests.get(base_url, headers=headers, timeout=30)
     response.raise_for_status()
     total_count = response.json().get("count", 0)
     total_pages = math.ceil(total_count / page_size)
 
+    # ------------------------------------------------
     # Step 2: Calculate starting page
+    # ------------------------------------------------
     start_page = max(total_pages - max_pages + 1, 1)
     current_page = start_page
 
-    # Step 3: Loop from start_page to total_pages
+    # ------------------------------------------------
+    # Step 3: Loop pages
+    # ------------------------------------------------
     while current_page <= total_pages:
         url = f"{base_url}?page={current_page}"
         response = requests.get(url, headers=headers, timeout=30)
@@ -87,8 +94,10 @@ def sync_biotime_checkins():
         total_records += len(checkins)
 
         frappe.log_error(
-            f"BioTime sync page fetched. Records on this page: {len(checkins)}, "
-            f"Total so far: {total_records}, Page: {current_page}",
+            f"BioTime sync page fetched. "
+            f"Records: {len(checkins)}, "
+            f"Total: {total_records}, "
+            f"Page: {current_page}",
             "BioTime Sync Debug"
         )
 
@@ -105,7 +114,9 @@ def sync_biotime_checkins():
                     microsecond=0
                 )
 
+                # ------------------------------------------------
                 # Find employee
+                # ------------------------------------------------
                 employee_name = frappe.db.get_value(
                     "Employee",
                     {"attendance_device_id": emp_code},
@@ -119,7 +130,9 @@ def sync_biotime_checkins():
                     )
                     continue
 
+                # ------------------------------------------------
                 # Prevent exact duplicates
+                # ------------------------------------------------
                 if frappe.db.exists(
                     "Employee Checkin",
                     {"employee": employee_name, "time": punch_time}
@@ -127,20 +140,7 @@ def sync_biotime_checkins():
                     continue
 
                 # ------------------------------------------------
-                # Resolve shift (BioTime rules → fallback to assignment)
-                # ------------------------------------------------
-                resolved_shift = resolve_shift(entry, punch_time)
-
-
-                # DEBUG shift resolution
-                frappe.log_error(
-                    f"EMP:{employee_name} | TERMINAL:{entry.get('terminal_alias')} | "
-                    f"TIME:{punch_time} | SHIFT:{resolved_shift}",
-                    "BioTime Shift Debug"
-                )
-
-                # ------------------------------------------------
-                # Create Employee Checkin
+                # Create Employee Checkin (NO manual shift)
                 # ------------------------------------------------
                 doc = frappe.new_doc("Employee Checkin")
                 doc.employee = employee_name
@@ -148,8 +148,8 @@ def sync_biotime_checkins():
                 doc.device_id = entry.get("terminal_sn")
                 doc.log_type = "IN" if entry.get("punch_state") == "0" else "OUT"
 
-                if resolved_shift:
-                    doc.shift = resolved_shift
+                # 🔥 Let HRMS auto-fetch shift
+                doc.fetch_shift()
 
                 doc.flags.ignore_validate = True
                 doc.insert(ignore_permissions=True)
@@ -169,12 +169,12 @@ Error         : {str(e)}
         current_page += 1
 
     frappe.log_error(
-        f"BioTime sync completed successfully. Total records processed: {total_records}",
+        f"BioTime sync completed successfully. "
+        f"Total records processed: {total_records}",
         "BioTime Sync Debug"
     )
+
     frappe.db.commit()
-
-
 
 
 def leave_cf_carry_forward():
