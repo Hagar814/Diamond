@@ -1,7 +1,7 @@
 import frappe
 import requests
 from datetime import datetime, time
-from frappe.utils import getdate, nowdate, get_datetime, convert_utc_to_system_timezone
+from frappe.utils import getdate, nowdate, now_datetime, convert_utc_to_system_timezone
 from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
 import math
 
@@ -14,7 +14,7 @@ def sync_zkteco_token():
         url = "http://biotime.almasa.com.sa/jwt-api-token-auth/"
         payload = {
             "username": "Admin",
-            "password": "Almasa2026"
+            "password": "Almasa@2026"
         }
 
         response = requests.post(url, json=payload, timeout=20)
@@ -65,7 +65,7 @@ def sync_biotime_checkins():
     base_url = "http://biotime.almasa.com.sa/iclock/api/transactions/"
     total_records = 0
     page_size = 10
-    max_pages = 40
+    max_pages = 10
 
     # ------------------------------------------------
     # Step 1: Get total count
